@@ -4,10 +4,9 @@ CREATE TABLE IF NOT EXISTS counter(
 );
 INSERT OR IGNORE INTO counter(id, visits) VALUES(1, 0);
 
---future tables go here as you add features, e.g.:
---CREATE TABLE IF NOT EXISTS guestbook(
-  --id INTEGER PRIMARY KEY AUTOINCREMENT,
-  --name TEXT NOT NULL,
-  --message TEXT NOT NULL,
-  --created_at TEXT NOT NULL DEFAULT(datetime('now'))
--- );
+CREATE TABLE IF NOT EXISTS guestbook (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

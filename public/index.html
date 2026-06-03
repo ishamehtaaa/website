@@ -36,5 +36,61 @@
     })
     .catch(() => { el.textContent = "?"; });
 </script>
+<h2>guestbook</h2>
+
+<div>
+  <input id="gb-name" placeholder="your name" maxlength="50" />
+  <textarea id="gb-message" placeholder="leave a note..." maxlength="500"></textarea>
+  <button id="gb-submit">sign</button>
+  <span id="gb-status"></span>
+</div>
+
+<ul id="gb-entries"></ul>
+
+<script>
+  const esc = s => s.replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function loadGuestbook() {
+    fetch("/api/guestbook")
+      .then(r => r.json())
+      .then(rows => {
+        document.getElementById("gb-entries").innerHTML = rows.map(r => `
+          <li>
+            <strong>${esc(r.name)}</strong>
+            <span>${new Date(r.created_at + "Z").toLocaleDateString()}</span>
+            <p>${esc(r.message)}</p>
+          </li>
+        `).join("");
+      });
+  }
+
+  document.getElementById("gb-submit").addEventListener("click", () => {
+    const name = document.getElementById("gb-name").value.trim();
+    const message = document.getElementById("gb-message").value.trim();
+    const status = document.getElementById("gb-status");
+    if (!name || !message) { status.textContent = "fill in both fields"; return; }
+    status.textContent = "signing...";
+    fetch("/api/guestbook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, message }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) {
+          document.getElementById("gb-name").value = "";
+          document.getElementById("gb-message").value = "";
+          status.textContent = "";
+          loadGuestbook();
+        } else {
+          status.textContent = d.error || "something went wrong";
+        }
+      })
+      .catch(() => { status.textContent = "couldn't sign, try again"; });
+  });
+
+  loadGuestbook();
+</script>
 </body>
 </html>
