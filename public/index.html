@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deploy Demo</title>
+  <title>isha's house</title>
   <style>
     body {
       font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -25,15 +25,16 @@
   <p>currently under construction...see you soon <3</p>
   <p><span id="count">—</span> visitors</p>
   <script>
-    fetch("/api/count")
-      .then(r => r.json())
-      .then(d => {
-        document.getElementById("count").textContent = d.count.toLocaleString();
-      })
-      .catch(() => {
-        document.getElementById("count").textContent = "?";
-      });
-  </script>
+  const el = document.getElementById("count");
+  const seen = localStorage.getItem("counted");
+  fetch(seen ? "/api/count/peek" : "/api/count")
+    .then(r => r.json())
+    .then(d => {
+      el.textContent = d.count.toLocaleString();
+      localStorage.setItem("counted", "1");
+    })
+    .catch(() => { el.textContent = "?"; });
+</script>
 </body>
 
 </html>
