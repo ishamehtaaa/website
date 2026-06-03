@@ -1,4 +1,4 @@
-ishamehta.com {
+ishamehta.ca {
     reverse_proxy app:3000
 }
 
