@@ -17,45 +17,23 @@
       margin: 0;
       gap: 24px;
     }
-    button {
-      background: #1a1a1a;
-      color: #e0e0e0;
-      border: 1px solid #333;
-      padding: 12px 20px;
-      font-family: inherit;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    button:hover { border-color: #666; }
-    #output {
-      border: 1px solid #333;
-      padding: 16px;
-      min-width: 320px;
-      white-space: pre-wrap;
-      font-size: 13px;
-      color: #888;
-    }
     h1 { font-weight: 500; font-size: 18px; }
   </style>
 </head>
 <body>
   <h1>welcome to isha's house</h1>
   <p>currently under construction...see you soon <3</p>
-
+  <p><span id="count">—</span> visitors</p>
   <script>
-    const btn = document.getElementById("btn");
-    const output = document.getElementById("output");
-
-    btn.addEventListener("click", async () => {
-      output.textContent = "loading...";
-      try {
-        const res = await fetch("/api/hello");
-        const data = await res.json();
-        output.textContent = JSON.stringify(data, null, 2);
-      } catch (err) {
-        output.textContent = "error: " + err.message;
-      }
-    });
+    fetch("/api/count")
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById("count").textContent = d.count.toLocaleString();
+      })
+      .catch(() => {
+        document.getElementById("count").textContent = "?";
+      });
   </script>
 </body>
+
 </html>
