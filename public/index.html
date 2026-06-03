@@ -5,92 +5,143 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>isha's house</title>
   <style>
+    :root {
+      --bg: #0f0f0f;
+      --fg: #e0e0e0;
+      --muted: #888;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
       font-family: ui-monospace, "SF Mono", Menlo, monospace;
-      background: #0f0f0f;
-      color: #e0e0e0;
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    /* ---- main content ---- */
+    main {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      margin: 0;
       gap: 24px;
+      padding: 24px;
     }
-    h1 { font-weight: 500; font-size: 18px; }
+
+    h1 { font-weight: 500; font-size: 18px; margin: 0; }
+
+    #count { color: var(--muted); font-size: 14px; }
+
+    /* ---- guestbook notepad ---- */
+    #guestbook {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 220px;
+      background: #fdf8e4;
+      color: #2b2b2b;
+      border-radius: 4px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      font-size: 12px;
+      transform: rotate(1.5deg);
+      overflow: hidden;
+    }
+
+    #guestbook h2 {
+      margin: 0;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      background: #f4c95d;
+      color: #3a2f0b;
+    }
+
+    .gb-form {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+    }
+
+    .gb-form input,
+    .gb-form textarea {
+      font: inherit;
+      border: none;
+      border-bottom: 1px solid #d8cfa6;
+      background: transparent;
+      color: #2b2b2b;
+      padding: 4px 2px;
+      resize: none;
+    }
+
+    .gb-form input:focus,
+    .gb-form textarea:focus { outline: none; border-bottom-color: #f4c95d; }
+
+    .gb-form textarea { min-height: 40px; }
+
+    .gb-form button {
+      align-self: flex-end;
+      font: inherit;
+      border: none;
+      background: #3a2f0b;
+      color: #fdf8e4;
+      padding: 3px 12px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    #gb-status { font-size: 10px; color: #a08a3a; min-height: 12px; }
+
+    #gb-entries {
+      list-style: none;
+      margin: 0;
+      padding: 4px 12px 12px;
+      max-height: 40vh;
+      overflow-y: auto;
+    }
+
+    #gb-entries li {
+      padding: 6px 0;
+      border-top: 1px dashed #d8cfa6;
+    }
+
+    #gb-entries strong { font-size: 11px; }
+    #gb-entries span { color: #a08a3a; font-size: 10px; margin-left: 4px; }
+    #gb-entries p { margin: 2px 0 0; line-height: 1.4; }
+
+    @media (max-width: 640px) {
+      #guestbook {
+        position: static;
+        width: auto;
+        margin: 24px;
+        transform: none;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>welcome to isha's house</h1>
-  <p>currently under construction...see you soon <3</p>
-  <p id="count">—</p>
-  <script>
-  const el = document.getElementById("count");
-  const seen = localStorage.getItem("counted");
-  fetch(seen ? "/api/count/peek" : "/api/count")
-    .then(r => r.json())
-    .then(d => {
-      const n = d.count;
-      el.textContent = `${n.toLocaleString()} ${n === 1 ? "visitor" : "visitors"}`;
-      localStorage.setItem("counted", "1");
-    })
-    .catch(() => { el.textContent = "?"; });
-</script>
-<h2>guestbook</h2>
+  <main>
+    <h1>welcome to isha's house</h1>
+    <p>currently under construction...see you soon &lt;3</p>
+    <p id="count">—</p>
+  </main>
 
-<div>
-  <input id="gb-name" placeholder="your name" maxlength="50" />
-  <textarea id="gb-message" placeholder="leave a note..." maxlength="500"></textarea>
-  <button id="gb-submit">sign</button>
-  <span id="gb-status"></span>
-</div>
+  <aside id="guestbook">
+    <h2>guestbook</h2>
+    <div class="gb-form">
+      <input id="gb-name" placeholder="your name" maxlength="50" />
+      <textarea id="gb-message" placeholder="leave a note..." maxlength="500"></textarea>
+      <button id="gb-submit">sign</button>
+      <span id="gb-status"></span>
+    </div>
+    <ul id="gb-entries"></ul>
+  </aside>
 
-<ul id="gb-entries"></ul>
-
-<script>
-  const esc = s => s.replace(/[&<>"']/g, c =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-  function loadGuestbook() {
-    fetch("/api/guestbook")
-      .then(r => r.json())
-      .then(rows => {
-        document.getElementById("gb-entries").innerHTML = rows.map(r => `
-          <li>
-            <strong>${esc(r.name)}</strong>
-            <span>${new Date(r.created_at + "Z").toLocaleDateString()}</span>
-            <p>${esc(r.message)}</p>
-          </li>
-        `).join("");
-      });
-  }
-
-  document.getElementById("gb-submit").addEventListener("click", () => {
-    const name = document.getElementById("gb-name").value.trim();
-    const message = document.getElementById("gb-message").value.trim();
-    const status = document.getElementById("gb-status");
-    if (!name || !message) { status.textContent = "fill in both fields"; return; }
-    status.textContent = "signing...";
-    fetch("/api/guestbook", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, message }),
-    })
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok) {
-          document.getElementById("gb-name").value = "";
-          document.getElementById("gb-message").value = "";
-          status.textContent = "";
-          loadGuestbook();
-        } else {
-          status.textContent = d.error || "something went wrong";
-        }
-      })
-      .catch(() => { status.textContent = "couldn't sign, try again"; });
-  });
-
-  loadGuestbook();
-</script>
+  <script src="/app.js"></script>
 </body>
 </html>
