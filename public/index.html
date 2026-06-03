@@ -23,18 +23,18 @@
 <body>
   <h1>welcome to isha's house</h1>
   <p>currently under construction...see you soon <3</p>
-  <p><span id="count">—</span> visitors</p>
+  <p id="count">—</p>
   <script>
   const el = document.getElementById("count");
   const seen = localStorage.getItem("counted");
   fetch(seen ? "/api/count/peek" : "/api/count")
     .then(r => r.json())
     .then(d => {
-      el.textContent = d.count.toLocaleString();
+      const n = d.count;
+      el.textContent = `${n.toLocaleString()} ${n === 1 ? "visitor" : "visitors"}`;
       localStorage.setItem("counted", "1");
     })
     .catch(() => { el.textContent = "?"; });
 </script>
 </body>
-
 </html>
