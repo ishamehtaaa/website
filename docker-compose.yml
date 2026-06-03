@@ -1,11 +1,13 @@
 services:
   app:
     build: .
+    container_name: app
     restart: unless-stopped
     volumes:
       - app_data:/data
   caddy:
     image: caddy:2-alpine
+    container_name: caddy
     restart: unless-stopped
     ports:
       - "80:80"
