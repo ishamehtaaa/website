@@ -36,6 +36,19 @@
 
     #count { color: var(--muted); font-size: 14px; }
 
+    main a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--muted); font-size: 14px; }
+    main a:hover { border-bottom-color: var(--fg); }
+
+    /* ---- corner nav ---- */
+    #nav {
+      position: fixed;
+      top: 24px;
+      left: 24px;
+      font-size: 13px;
+    }
+    #nav a { color: var(--muted); text-decoration: none; border-bottom: 1px dashed transparent; }
+    #nav a:hover { color: var(--fg); border-bottom-color: var(--muted); }
+
     /* ---- guestbook notepad ---- */
     #guestbook {
       position: fixed;
@@ -125,9 +138,13 @@
   </style>
 </head>
 <body>
+  <nav id="nav">
+    <a href="/scrapbook">scrapbook →</a>
+  </nav>
+
   <main>
     <h1>welcome to isha's house</h1>
-    <p>currently under construction...see you soon &lt;3</p>
+    <p>currently under construction...see you soon</p>
     <p id="count">—</p>
   </main>
 

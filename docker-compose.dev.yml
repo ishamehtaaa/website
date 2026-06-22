@@ -1,0 +1,21 @@
+# LOCAL DEV — app only, served directly on http://localhost:3000.
+# No Caddy, no TLS, no Cloudflare. Frontend files are bind-mounted so you can
+# edit public/*.html|js|css and just refresh (server.js changes need a restart).
+#   docker compose -f docker-compose.dev.yml up --build
+#   -> open http://localhost:3000
+services:
+  app:
+    build: .
+    container_name: website-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_PATH=/data/site.db
+    volumes:
+      - website_data_dev:/data        # separate dev database, never shared with prod
+      - ./public:/app/public          # live-edit the frontend, no rebuild needed
+
+volumes:
+  website_data_dev:
+    name: website_data_dev

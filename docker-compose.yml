@@ -1,8 +1,13 @@
+# PRODUCTION (ishamehta.ca server) — app behind Caddy with TLS.
+# The app port is NOT published; only Caddy is public on 80/443.
+#   docker compose up -d --build
 services:
   app:
     build: .
     container_name: app
     restart: unless-stopped
+    environment:
+      - DB_PATH=/data/site.db
     volumes:
       - app_data:/data
   caddy:

@@ -3,7 +3,7 @@ const db = require("./db");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "6mb" }));
 
 app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello from the backend!", time: new Date().toISOString() });
@@ -37,6 +37,68 @@ app.post("/api/guestbook", (req, res) => {
   }
   db.prepare("INSERT INTO guestbook (name, message) VALUES (?, ?)").run(name, message);
   res.json({ ok: true });
+});
+
+// ---- scrapbook ----
+const SCRAP_TYPES = new Set(["note", "image", "link"]);
+
+app.get("/api/scrapbook", (req, res) => {
+  const rows = db
+    .prepare("SELECT * FROM scrapbook ORDER BY z ASC, id ASC")
+    .all();
+  res.json(rows);
+});
+
+app.post("/api/scrapbook", (req, res) => {
+  let { type, content, caption, x, y, rotation } = req.body || {};
+  type = SCRAP_TYPES.has(type) ? type : "note";
+  content = (content || "").trim();
+  caption = (caption || "").trim().slice(0, 200) || null;
+  if (!content) {
+    return res.status(400).json({ error: "content required" });
+  }
+  // images are data URLs and can be large; notes/links are short text
+  const maxLen = type === "image" ? 6_000_000 : 2000;
+  content = content.slice(0, maxLen);
+
+  const top = db.prepare("SELECT COALESCE(MAX(z), 0) + 1 AS z FROM scrapbook").get().z;
+  const info = db
+    .prepare(
+      `INSERT INTO scrapbook (type, content, caption, x, y, rotation, z)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(type, content, caption, Number(x) || 40, Number(y) || 40, Number(rotation) || 0, top);
+  const row = db.prepare("SELECT * FROM scrapbook WHERE id = ?").get(info.lastInsertRowid);
+  res.json(row);
+});
+
+app.patch("/api/scrapbook/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare("SELECT * FROM scrapbook WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "not found" });
+
+  const { x, y, rotation, z } = req.body || {};
+  db.prepare(
+    `UPDATE scrapbook SET
+       x = ?, y = ?, rotation = ?, z = ?
+     WHERE id = ?`
+  ).run(
+    x != null ? Number(x) : existing.x,
+    y != null ? Number(y) : existing.y,
+    rotation != null ? Number(rotation) : existing.rotation,
+    z != null ? Number(z) : existing.z,
+    id
+  );
+  res.json({ ok: true });
+});
+
+app.delete("/api/scrapbook/:id", (req, res) => {
+  db.prepare("DELETE FROM scrapbook WHERE id = ?").run(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+app.get("/scrapbook", (req, res) => {
+  res.sendFile(require("path").join(__dirname, "public", "scrapbook.html"));
 });
 
 app.use(express.static("public"));
