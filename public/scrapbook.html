@@ -9,14 +9,26 @@
 <body class="scrapbook">
   <div id="bar">
     <a href="/">← home</a>
-    <button data-add="note">+ note</button>
-    <button data-add="image">+ photo</button>
-    <button data-add="link">+ link</button>
+    <nav id="boards"></nav>
+    <span id="add-controls">
+      <button data-add="note">+ note</button>
+      <button data-add="image">+ photo</button>
+      <button data-add="link">+ link</button>
+    </span>
+    <span id="owner-controls"></span>
+    <span id="auth-control"></span>
     <span id="hint">drag to move · double-click to remove</span>
   </div>
 
   <div id="board">
     <div id="empty">a little empty in here</div>
+  </div>
+
+  <div id="deadend" hidden>
+    <div class="deadend-card">
+      <p>404 — there's nothing here</p>
+      <a href="/">← back home</a>
+    </div>
   </div>
 
   <input type="file" id="file-input" accept="image/*" hidden />

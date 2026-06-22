@@ -15,4 +15,22 @@ if (!scrapCols.some(c => c.name === "scale")) {
   db.exec("ALTER TABLE scrapbook ADD COLUMN scale REAL NOT NULL DEFAULT 1");
 }
 
+// boards: every scrapbook item belongs to a board. older databases predate the
+// boards table, so ensure the default ("main") board exists, add board_id to
+// scrapbook if missing, then backfill any orphaned items onto the default board.
+let defaultBoard = db.prepare("SELECT id FROM boards WHERE is_default = 1").get();
+if (!defaultBoard) {
+  const info = db
+    .prepare("INSERT INTO boards (slug, title, visibility, is_default) VALUES ('main', 'scrapbook', 'public', 1)")
+    .run();
+  defaultBoard = { id: info.lastInsertRowid };
+}
+
+if (!scrapCols.some(c => c.name === "board_id")) {
+  db.exec("ALTER TABLE scrapbook ADD COLUMN board_id INTEGER REFERENCES boards(id)");
+}
+db.prepare("UPDATE scrapbook SET board_id = ? WHERE board_id IS NULL").run(defaultBoard.id);
+// safe now that board_id is guaranteed to exist on both fresh and migrated DBs
+db.exec("CREATE INDEX IF NOT EXISTS idx_scrapbook_board ON scrapbook(board_id)");
+
 module.exports = db;

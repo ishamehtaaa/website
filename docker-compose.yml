@@ -8,6 +8,7 @@ services:
     restart: unless-stopped
     environment:
       - DB_PATH=/data/site.db
+      - SITE_PASSWORD=${SITE_PASSWORD}   # shared scrapbook password; set on the host (e.g. .env)
     volumes:
       - app_data:/data
   caddy:

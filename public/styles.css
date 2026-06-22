@@ -11,6 +11,11 @@
 
 * { box-sizing: border-box; }
 
+/* the [hidden] attribute must win over id rules that set `display` (e.g. #bar,
+   #deadend are display:flex); without !important those override it and the
+   element never actually hides. */
+[hidden] { display: none !important; }
+
 body {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   background: var(--bg);
@@ -196,6 +201,54 @@ body.scrapbook { overflow: auto; }
 #bar button:hover { border-color: #f4c95d; color: #f4c95d; }
 
 #hint { color: var(--muted); font-size: 11px; margin-left: 4px; }
+
+/* ---- board switcher ---- */
+#boards { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+#boards a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  margin: 0;
+}
+#boards a:hover { color: var(--fg); }
+#boards a.active { color: #f4c95d; border-color: #333; background: #1b1b1b; }
+
+#owner-controls, #add-controls, #auth-control { display: inline-flex; align-items: center; gap: 8px; }
+#owner-controls[hidden], #add-controls[hidden] { display: none; }
+
+/* ---- dead end (no access / no such board) — looks like a plain 404 ---- */
+#deadend {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.deadend-card { text-align: center; }
+.deadend-card p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.deadend-card a {
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--muted);
+  font-size: 13px;
+}
+.deadend-card a:hover { color: var(--fg); border-bottom-color: var(--fg); }
+
+/* select in the modal, matching the inputs */
+.modal select {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: #0f0f0f;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 9px 10px;
+}
+.modal select:focus { outline: none; border-color: #f4c95d; }
 
 /* ---- board ---- */
 /* at least the viewport, but grows to encompass every item (sized in

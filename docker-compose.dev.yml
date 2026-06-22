@@ -12,6 +12,7 @@ services:
       - "3000:3000"
     environment:
       - DB_PATH=/data/site.db
+      - SITE_PASSWORD=devpass          # dev-only shared password for the private boards
     volumes:
       - website_data_dev:/data        # separate dev database, never shared with prod
       - ./public:/app/public          # live-edit the frontend, no rebuild needed

@@ -1,9 +1,121 @@
 const express = require("express");
+const crypto = require("crypto");
 const db = require("./db");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// shared-password auth. when unset, login fails closed (nobody can ever be
+// authed) so private boards stay locked and the public site is unaffected.
+const SITE_PASSWORD = process.env.SITE_PASSWORD || "";
+
+// Caddy terminates TLS and reverse-proxies plain HTTP to us; trust its single
+// hop so req.secure reflects X-Forwarded-Proto (https in prod, http in dev).
+app.set("trust proxy", 1);
+
 app.use(express.json({ limit: "6mb" }));
+
+// ---- auth (stateless HMAC-signed cookie, no sessions table) ----
+const COOKIE = "sb_session";
+const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// key derived from the password, so rotating SITE_PASSWORD invalidates all
+// outstanding sessions for free.
+const SECRET = crypto.createHash("sha256").update(SITE_PASSWORD).digest();
+
+const b64url = buf => Buffer.from(buf).toString("base64url");
+
+function timingEqual(a, b) {
+  const ab = Buffer.from(a), bb = Buffer.from(b);
+  // pre-hash equalizes length so timingSafeEqual never throws / leaks length
+  const ah = crypto.createHash("sha256").update(ab).digest();
+  const bh = crypto.createHash("sha256").update(bb).digest();
+  return crypto.timingSafeEqual(ah, bh);
+}
+
+function passwordOk(input) {
+  if (!SITE_PASSWORD) return false;
+  return timingEqual(String(input || ""), SITE_PASSWORD);
+}
+
+function makeToken() {
+  const payload = b64url(JSON.stringify({ v: 1, exp: Date.now() + SESSION_MS }));
+  const sig = b64url(crypto.createHmac("sha256", SECRET).update(payload).digest());
+  return `${payload}.${sig}`;
+}
+
+function tokenValid(token) {
+  if (!SITE_PASSWORD || !token) return false;
+  const [payload, sig] = token.split(".");
+  if (!payload || !sig) return false;
+  const expected = b64url(crypto.createHmac("sha256", SECRET).update(payload).digest());
+  if (!timingEqual(sig, expected)) return false;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return data.exp > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function readCookie(req, name) {
+  const raw = req.headers.cookie;
+  if (!raw) return null;
+  for (const part of raw.split(";")) {
+    const i = part.indexOf("=");
+    if (i < 0) continue;
+    if (part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return null;
+}
+
+const isAuthed = req => tokenValid(readCookie(req, COOKIE));
+
+function requireAuth(req, res, next) {
+  if (!isAuthed(req)) return res.status(401).json({ error: "unauthorized" });
+  next();
+}
+
+// crude in-memory brute-force limiter: lock an IP out for a bit after repeated
+// failures. resets on success. fine for a single shared secret on one process.
+const MAX_FAILS = 8, LOCK_MS = 5 * 60 * 1000;
+const attempts = new Map(); // ip -> { count, until }
+
+function loginBlocked(ip) {
+  const a = attempts.get(ip);
+  return a && a.until > Date.now();
+}
+function recordFail(ip) {
+  const a = attempts.get(ip) || { count: 0, until: 0 };
+  a.count += 1;
+  if (a.count >= MAX_FAILS) { a.until = Date.now() + LOCK_MS; a.count = 0; }
+  attempts.set(ip, a);
+}
+
+app.post("/api/login", (req, res) => {
+  if (!SITE_PASSWORD) return res.status(503).json({ error: "login disabled" });
+  if (loginBlocked(req.ip)) return res.status(429).json({ error: "too many attempts, try later" });
+  if (!passwordOk((req.body || {}).password)) {
+    recordFail(req.ip);
+    return res.status(401).json({ error: "wrong password" });
+  }
+  attempts.delete(req.ip);
+  res.cookie(COOKIE, makeToken(), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: req.secure, // Secure in prod (https via Caddy), not on dev http
+    path: "/",
+    maxAge: SESSION_MS,
+  });
+  res.json({ ok: true });
+});
+
+app.post("/api/logout", (req, res) => {
+  res.clearCookie(COOKIE, { path: "/" });
+  res.json({ ok: true });
+});
+
+app.get("/api/whoami", (req, res) => {
+  res.json({ authed: isAuthed(req) });
+});
 
 app.get("/api/hello", (req, res) => {
   res.json({ message: "Hello from the backend!", time: new Date().toISOString() });
@@ -39,13 +151,100 @@ app.post("/api/guestbook", (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- boards ----
+const VISIBILITIES = new Set(["public", "private"]);
+
+// turn a title into a url-safe, unique slug. "main" is reserved for the default.
+function makeSlug(title) {
+  let base = String(title || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  if (!base || base === "main") base = "board";
+  let slug = base, n = 1;
+  while (db.prepare("SELECT 1 FROM boards WHERE slug = ?").get(slug)) {
+    n += 1;
+    slug = `${base}-${n}`;
+  }
+  return slug;
+}
+
+// list boards. anonymous callers only ever see public ones, so private boards
+// never leak through the switcher.
+app.get("/api/boards", (req, res) => {
+  const rows = isAuthed(req)
+    ? db.prepare("SELECT id, slug, title, visibility, is_default FROM boards ORDER BY id ASC").all()
+    : db.prepare("SELECT id, slug, title, visibility, is_default FROM boards WHERE visibility = 'public' ORDER BY id ASC").all();
+  res.json(rows);
+});
+
+app.post("/api/boards", requireAuth, (req, res) => {
+  let { title, visibility } = req.body || {};
+  title = (title || "").trim().slice(0, 80);
+  visibility = VISIBILITIES.has(visibility) ? visibility : "private";
+  if (!title) return res.status(400).json({ error: "title required" });
+  const slug = makeSlug(title);
+  const info = db
+    .prepare("INSERT INTO boards (slug, title, visibility, is_default) VALUES (?, ?, ?, 0)")
+    .run(slug, title, visibility);
+  const row = db.prepare("SELECT id, slug, title, visibility, is_default FROM boards WHERE id = ?").get(info.lastInsertRowid);
+  res.json(row);
+});
+
+app.patch("/api/boards/:slug", requireAuth, (req, res) => {
+  const board = db.prepare("SELECT * FROM boards WHERE slug = ?").get(req.params.slug);
+  if (!board) return res.status(404).json({ error: "not found" });
+
+  let { title, visibility } = req.body || {};
+  if (visibility != null) {
+    if (!VISIBILITIES.has(visibility)) return res.status(400).json({ error: "bad visibility" });
+    // the default board must stay public, else the public scrapbook disappears
+    if (board.is_default && visibility !== "public") {
+      return res.status(400).json({ error: "default board must stay public" });
+    }
+  }
+  const newTitle = title != null ? String(title).trim().slice(0, 80) || board.title : board.title;
+  const newVis = visibility != null ? visibility : board.visibility;
+  db.prepare("UPDATE boards SET title = ?, visibility = ? WHERE id = ?").run(newTitle, newVis, board.id);
+  res.json({ ok: true });
+});
+
+app.delete("/api/boards/:slug", requireAuth, (req, res) => {
+  const board = db.prepare("SELECT * FROM boards WHERE slug = ?").get(req.params.slug);
+  if (!board) return res.status(404).json({ error: "not found" });
+  if (board.is_default) return res.status(400).json({ error: "cannot delete default board" });
+  const wipe = db.transaction(id => {
+    db.prepare("DELETE FROM scrapbook WHERE board_id = ?").run(id);
+    db.prepare("DELETE FROM boards WHERE id = ?").run(id);
+  });
+  wipe(board.id);
+  res.json({ ok: true });
+});
+
+// resolve the board for a scrapbook request and enforce visibility. returns the
+// board row, or null after sending a 404 (also used as the not-authorized
+// response for private boards so their existence never leaks).
+function boardAccess(req, res, slug) {
+  slug = slug || req.query.board || "main";
+  const board = db.prepare("SELECT * FROM boards WHERE slug = ?").get(slug);
+  if (!board) { res.status(404).json({ error: "not found" }); return null; }
+  if (board.visibility === "private" && !isAuthed(req)) {
+    res.status(404).json({ error: "not found" });
+    return null;
+  }
+  return board;
+}
+
 // ---- scrapbook ----
 const SCRAP_TYPES = new Set(["note", "image", "link"]);
 
 app.get("/api/scrapbook", (req, res) => {
+  const board = boardAccess(req, res);
+  if (!board) return;
   const rows = db
-    .prepare("SELECT * FROM scrapbook ORDER BY z ASC, id ASC")
-    .all();
+    .prepare("SELECT * FROM scrapbook WHERE board_id = ? ORDER BY z ASC, id ASC")
+    .all(board.id);
   res.json(rows);
 });
 
@@ -53,6 +252,8 @@ app.get("/api/scrapbook", (req, res) => {
 const clampScale = s => Math.min(4, Math.max(0.3, Number(s) || 1));
 
 app.post("/api/scrapbook", (req, res) => {
+  const board = boardAccess(req, res);
+  if (!board) return;
   let { type, content, caption, x, y, rotation, scale } = req.body || {};
   type = SCRAP_TYPES.has(type) ? type : "note";
   content = (content || "").trim();
@@ -64,13 +265,13 @@ app.post("/api/scrapbook", (req, res) => {
   const maxLen = type === "image" ? 6_000_000 : 2000;
   content = content.slice(0, maxLen);
 
-  const top = db.prepare("SELECT COALESCE(MAX(z), 0) + 1 AS z FROM scrapbook").get().z;
+  const top = db.prepare("SELECT COALESCE(MAX(z), 0) + 1 AS z FROM scrapbook WHERE board_id = ?").get(board.id).z;
   const info = db
     .prepare(
-      `INSERT INTO scrapbook (type, content, caption, x, y, rotation, scale, z)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO scrapbook (type, content, caption, x, y, rotation, scale, z, board_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(type, content, caption, Number(x) || 40, Number(y) || 40, Number(rotation) || 0, clampScale(scale), top);
+    .run(type, content, caption, Number(x) || 40, Number(y) || 40, Number(rotation) || 0, clampScale(scale), top, board.id);
   const row = db.prepare("SELECT * FROM scrapbook WHERE id = ?").get(info.lastInsertRowid);
   res.json(row);
 });
@@ -79,6 +280,9 @@ app.patch("/api/scrapbook/:id", (req, res) => {
   const id = Number(req.params.id);
   const existing = db.prepare("SELECT * FROM scrapbook WHERE id = ?").get(id);
   if (!existing) return res.status(404).json({ error: "not found" });
+  // gate on the item's own board (don't trust a query param for ownership)
+  const board = db.prepare("SELECT * FROM boards WHERE id = ?").get(existing.board_id);
+  if (board && !boardAccess(req, res, board.slug)) return;
 
   const { x, y, rotation, scale, z } = req.body || {};
   db.prepare(
@@ -97,7 +301,12 @@ app.patch("/api/scrapbook/:id", (req, res) => {
 });
 
 app.delete("/api/scrapbook/:id", (req, res) => {
-  db.prepare("DELETE FROM scrapbook WHERE id = ?").run(Number(req.params.id));
+  const id = Number(req.params.id);
+  const existing = db.prepare("SELECT * FROM scrapbook WHERE id = ?").get(id);
+  if (!existing) return res.json({ ok: true });
+  const board = db.prepare("SELECT * FROM boards WHERE id = ?").get(existing.board_id);
+  if (board && !boardAccess(req, res, board.slug)) return;
+  db.prepare("DELETE FROM scrapbook WHERE id = ?").run(id);
   res.json({ ok: true });
 });
 

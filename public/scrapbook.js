@@ -10,6 +10,12 @@ const modal = document.getElementById("modal");
 
 let topZ = 0;
 
+// which board this page is showing (?board=slug, default "main"). GET/POST are
+// scoped to it; PATCH/DELETE go by item id (the server gates on the item's board).
+const slug = new URLSearchParams(location.search).get("board") || "main";
+const listUrl = `/api/scrapbook?board=${encodeURIComponent(slug)}`;
+let authed = false;
+
 // ---- modal ----
 // openModal({ title, fields:[{name,label,type,placeholder}], okLabel })
 // resolves to { name: value, ... } on submit, or null on cancel.
@@ -21,7 +27,10 @@ function openModal({ title, fields = [], okLabel = "add" }) {
         const id = `f-${f.name}`;
         const ctrl = f.type === "textarea"
           ? `<textarea id="${id}" placeholder="${esc(f.placeholder || "")}"></textarea>`
-          : `<input id="${id}" type="${f.type || "text"}" placeholder="${esc(f.placeholder || "")}" />`;
+          : f.type === "select"
+          ? `<select id="${id}">${(f.options || []).map(o =>
+              `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join("")}</select>`
+          : `<input id="${id}" type="${f.type || "text"}" placeholder="${esc(f.placeholder || "")}" value="${esc(f.value || "")}" />`;
         return `<div class="field"><label for="${id}">${esc(f.label)}</label>${ctrl}</div>`;
       }).join("") +
       `<div class="actions">
@@ -148,18 +157,32 @@ function normalizePositions(rows) {
 }
 
 function loadBoard() {
-  fetch("/api/scrapbook")
-    .then(r => r.json())
+  fetch(listUrl)
+    .then(r => {
+      // 404 = private board we can't see, or no such board. Same response either
+      // way, so a board's existence never leaks — just a generic dead end.
+      if (r.status === 404) { showDeadEnd(); return null; }
+      return r.json();
+    })
     .then(rows => {
+      if (!rows) return;
       normalizePositions(rows);
       rows.forEach(renderItem);
       sizeBoard();
     });
 }
 
+// no access (private + no key, or no such board): make the page look like any
+// dead link — hide everything and show a plain 404 with a way home.
+function showDeadEnd() {
+  board.hidden = true;
+  document.getElementById("bar").hidden = true;
+  document.getElementById("deadend").hidden = false;
+}
+
 // ---- adding ----
 function postItem(payload) {
-  return fetch("/api/scrapbook", {
+  return fetch(listUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -323,7 +346,7 @@ function makeDraggable(el) {
   }
 }
 
-// ---- toolbar ----
+// ---- toolbar: add items ----
 document.getElementById("bar").addEventListener("click", e => {
   const add = e.target.dataset.add;
   if (add === "note") addNote();
@@ -331,5 +354,135 @@ document.getElementById("bar").addEventListener("click", e => {
   else if (add === "link") addLink();
 });
 
+// ---- boards + auth ----
+const boardsNav = document.getElementById("boards");
+const ownerControls = document.getElementById("owner-controls");
+const authControl = document.getElementById("auth-control");
+
+// the board switcher only exists for logged-in users; to a public visitor the
+// page looks exactly as it did before (just the add buttons + home link).
+function renderBoards(boards) {
+  if (!authed) { boardsNav.innerHTML = ""; return; }
+  boardsNav.innerHTML = boards.map(b => {
+    const lock = b.visibility === "private" ? " 🔒" : "";
+    const cls = b.slug === slug ? ' class="active"' : "";
+    return `<a href="/scrapbook?board=${encodeURIComponent(b.slug)}"${cls}>${esc(b.title)}${lock}</a>`;
+  }).join("");
+}
+
+function renderOwnerControls(boards) {
+  if (!authed) { ownerControls.innerHTML = ""; return; }
+  const current = boards.find(b => b.slug === slug);
+  let html = '<button id="new-board">+ board</button>';
+  if (current && !current.is_default) {
+    const flip = current.visibility === "private" ? "make public" : "make private";
+    html += ` <button id="toggle-vis">${flip}</button>`;
+    if (current.visibility === "private") html += ' <button id="share-board">share link</button>';
+    html += ' <button id="del-board">delete board</button>';
+  }
+  ownerControls.innerHTML = html;
+
+  document.getElementById("new-board").onclick = newBoard;
+  const tog = document.getElementById("toggle-vis");
+  if (tog) tog.onclick = () => toggleVisibility(current);
+  const share = document.getElementById("share-board");
+  if (share) share.onclick = () => shareBoard(current);
+  const del = document.getElementById("del-board");
+  if (del) del.onclick = () => deleteBoard(current);
+}
+
+function renderAuth() {
+  // no public "log in" button — logging in is done with a ?key=… link. Only
+  // surface a way back out once you're in.
+  authControl.innerHTML = authed ? '<button id="logout">log out</button>' : "";
+  if (authed) document.getElementById("logout").onclick = logout;
+}
+
+// the shareable secret link for a private board: the password rides in the URL
+// so friends just click it. We keep the key in memory only if it was used this
+// session; otherwise the owner fills it into the placeholder.
+function shareBoard(b) {
+  const link = `${location.origin}/scrapbook?board=${encodeURIComponent(b.slug)}&key=${encodeURIComponent(unlockKey || "YOUR_PASSWORD")}`;
+  if (navigator.clipboard && unlockKey) {
+    navigator.clipboard.writeText(link).catch(() => {});
+  }
+  openModal({
+    title: unlockKey ? "link copied — anyone with it can open this board" : "share link (swap in your password)",
+    fields: [{ name: "link", label: "secret link", type: "text", value: link }],
+    okLabel: "done",
+  });
+}
+
+async function newBoard() {
+  const r = await openModal({
+    title: "new board",
+    fields: [
+      { name: "title", label: "name", type: "text", placeholder: "summer 2026…" },
+      { name: "visibility", label: "who can see it", type: "select",
+        options: [{ value: "private", label: "private (just us)" }, { value: "public", label: "public" }] },
+    ],
+    okLabel: "create",
+  });
+  if (!r || !r.title) return;
+  const res = await fetch("/api/boards", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: r.title, visibility: r.visibility }),
+  });
+  if (!res.ok) return;
+  const created = await res.json();
+  location.href = `/scrapbook?board=${encodeURIComponent(created.slug)}`;
+}
+
+async function toggleVisibility(b) {
+  const next = b.visibility === "private" ? "public" : "private";
+  await fetch(`/api/boards/${encodeURIComponent(b.slug)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility: next }),
+  });
+  location.reload();
+}
+
+async function deleteBoard(b) {
+  if (!(await confirmModal(`delete "${b.title}" and everything on it?`, "delete"))) return;
+  await fetch(`/api/boards/${encodeURIComponent(b.slug)}`, { method: "DELETE" });
+  location.href = "/scrapbook";
+}
+
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/scrapbook"; // drop any private ?board= and land on the public one
+}
+
+// the key from the secret link, kept in memory so we can build share links.
+let unlockKey = null;
+
 // ---- init ----
-loadBoard();
+(async function init() {
+  const params = new URLSearchParams(location.search);
+  const key = params.get("key");
+  if (key) {
+    unlockKey = key;
+    // exchange the key for a session cookie, then scrub it from the address bar
+    // so the password doesn't sit in the URL after the page loads.
+    await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: key }),
+    }).catch(() => {});
+    params.delete("key");
+    const qs = params.toString();
+    history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : ""));
+  }
+
+  const [who, boards] = await Promise.all([
+    fetch("/api/whoami").then(r => r.json()).catch(() => ({ authed: false })),
+    fetch("/api/boards").then(r => r.json()).catch(() => []),
+  ]);
+  authed = !!who.authed;
+  renderBoards(boards);
+  renderOwnerControls(boards);
+  renderAuth();
+  loadBoard();
+})();
