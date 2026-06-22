@@ -245,7 +245,40 @@ app.get("/api/scrapbook", (req, res) => {
   const rows = db
     .prepare("SELECT * FROM scrapbook WHERE board_id = ? ORDER BY z ASC, id ASC")
     .all(board.id);
+  // images ship as a cacheable URL instead of a fat inline data URL, so the
+  // list payload stays small and the browser caches each photo across refreshes
+  // (re-validating with a 304 rather than re-downloading).
+  for (const r of rows) {
+    if (r.type === "image") r.content = `/api/scrapbook/img/${r.id}`;
+  }
   res.json(rows);
+});
+
+// serve an image item's bytes decoded from its stored data URL. content is
+// immutable once created (only position/scale change), so the id is a stable
+// ETag and we can cache hard. private boards get a `private` directive so a
+// shared cache never holds their images.
+app.get("/api/scrapbook/img/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.prepare("SELECT * FROM scrapbook WHERE id = ?").get(id);
+  if (!row || row.type !== "image") return res.status(404).end();
+  const board = db.prepare("SELECT * FROM boards WHERE id = ?").get(row.board_id);
+  if (board && !boardAccess(req, res, board.slug)) return;
+
+  const m = /^data:([^;,]+)?(;base64)?,([\s\S]*)$/.exec(row.content || "");
+  if (!m) return res.status(404).end();
+  const mime = m[1] || "application/octet-stream";
+  const buf = m[2]
+    ? Buffer.from(m[3], "base64")
+    : Buffer.from(decodeURIComponent(m[3]), "utf8");
+
+  const etag = `"img-${id}"`;
+  const privacy = board && board.visibility === "private" ? "private" : "public";
+  res.set("Cache-Control", `${privacy}, max-age=31536000, immutable`);
+  res.set("ETag", etag);
+  res.type(mime);
+  if (req.headers["if-none-match"] === etag) return res.status(304).end();
+  res.send(buf);
 });
 
 // keep resize within sane bounds (mirrors MIN_SCALE/MAX_SCALE on the client)

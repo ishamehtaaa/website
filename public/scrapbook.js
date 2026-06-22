@@ -110,16 +110,10 @@ function renderItem(it) {
   return el;
 }
 
-// grow the board to encompass every item (+ margin) so off-screen items stay
-// reachable by scrolling/panning on mobile. no-op visually on desktop, where
-// the board is already clamped to the viewport.
 function sizeBoard() {
   const margin = 80;
   const b = board.getBoundingClientRect();
   let maxRight = 0, maxBottom = 0;
-  // getBoundingClientRect includes the transform scale, so scaled-up items are
-  // measured by their true visual extent; subtracting the board origin converts
-  // to board coords (both shift together under scroll)
   board.querySelectorAll(".item").forEach(el => {
     const r = el.getBoundingClientRect();
     maxRight = Math.max(maxRight, r.right - b.left);
@@ -148,11 +142,11 @@ function normalizePositions(rows) {
   rows.forEach(r => {
     r.x += dx;
     r.y += dy;
-    fetch(`/api/scrapbook/${r.id}`, {
+    api(`/api/scrapbook/${r.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ x: r.x, y: r.y, rotation: r.rotation, z: r.z }),
-    });
+    }).catch(() => {});
   });
 }
 
@@ -172,6 +166,18 @@ function loadBoard() {
     });
 }
 
+// central fetch: rejects on non-2xx and logs, so silent failures stop being silent.
+function api(url, opts) {
+  return fetch(url, opts).then(r => {
+    if (!r.ok) throw new Error(`${opts?.method || "GET"} ${url} → ${r.status}`);
+    return r;
+  }).catch(err => {
+    console.error("[scrapbook]", err);
+    throw err;
+  });
+}
+
+
 // no access (private + no key, or no such board): make the page look like any
 // dead link — hide everything and show a plain 404 with a way home.
 function showDeadEnd() {
@@ -182,7 +188,7 @@ function showDeadEnd() {
 
 // ---- adding ----
 function postItem(payload) {
-  return fetch(listUrl, {
+  return api(listUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -193,9 +199,9 @@ function postItem(payload) {
 function freshPlacement() {
   const jitter = () => Math.round((Math.random() - 0.5) * 160);
   return {
-    x: Math.round(window.innerWidth / 2 - 110) + jitter(),
-    y: Math.round(window.innerHeight / 2 - 60) + jitter(),
-    rotation: +((Math.random() - 0.5) * 8).toFixed(1), // ~ -4° .. 4°
+    x: Math.round(window.scrollX + window.innerWidth / 2 - 110) + jitter(),
+    y: Math.round(window.scrollY + window.innerHeight / 2 - 60) + jitter(),
+    rotation: +((Math.random() - 0.5) * 8).toFixed(1),
   };
 }
 
@@ -205,7 +211,7 @@ async function addNote() {
     fields: [{ name: "text", label: "what's on your mind?", type: "textarea", placeholder: "type something…" }],
   });
   if (!r || !r.text) return;
-  postItem({ type: "note", content: r.text, ...freshPlacement() }).then(renderItem).then(sizeBoard);
+  postItem({ type: "note", content: r.text, ...freshPlacement() }).then(renderItem).then(growToFit);
 }
 
 async function addLink() {
@@ -218,7 +224,7 @@ async function addLink() {
   });
   if (!r || !r.url) return;
   postItem({ type: "link", content: r.url, caption: r.caption, ...freshPlacement() })
-    .then(renderItem).then(sizeBoard);
+    .then(renderItem).then(growToFit);
 }
 
 function addPhoto() {
@@ -237,7 +243,7 @@ fileInput.addEventListener("change", () => {
     });
     if (!r) return; // cancelled
     postItem({ type: "image", content: dataUrl, caption: r.caption, ...freshPlacement() })
-      .then(renderItem).then(sizeBoard);
+      .then(renderItem).then(growToFit);
   });
   reader.readAsDataURL(file);
 });
@@ -274,7 +280,7 @@ function bringToFront(el) {
 }
 
 function persist(el) {
-  fetch(`/api/scrapbook/${el.dataset.id}`, {
+  api(`/api/scrapbook/${el.dataset.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -284,15 +290,16 @@ function persist(el) {
       scale: currentScale(el),
       z: parseInt(el.style.zIndex, 10) || topZ,
     }),
-  });
+  }).catch(() => {});
 }
 
 function makeDraggable(el) {
   // double-click / double-tap to remove (works even if the interact CDN fails)
   el.addEventListener("dblclick", async () => {
     if (!(await confirmModal("remove this from the board?"))) return;
-    fetch(`/api/scrapbook/${el.dataset.id}`, { method: "DELETE" })
-      .then(() => { el.remove(); sizeBoard(); });
+    api(`/api/scrapbook/${el.dataset.id}`, { method: "DELETE" })
+      .then(() => { el.remove(); sizeBoard(); })
+      .catch(() => {});
   });
 
   if (typeof interact === "undefined") return; // library unavailable; static board
@@ -305,6 +312,7 @@ function makeDraggable(el) {
         move(e) {
           el.style.left = (parseFloat(el.style.left) + e.dx) + "px";
           el.style.top = (parseFloat(el.style.top) + e.dy) + "px";
+          growToFit(el);
         },
         end() { el.classList.remove("dragging"); sizeBoard(); persist(el); },
       },
@@ -316,6 +324,7 @@ function makeDraggable(el) {
         move(e) {
           el.dataset.scale = clamp(el._s0 * e.scale, MIN_SCALE, MAX_SCALE);
           applyTransform(el);
+          growToFit(el);
         },
         end() { sizeBoard(); persist(el); },
       },
@@ -339,6 +348,7 @@ function makeDraggable(el) {
           const d = Math.hypot(e.clientX - cx, e.clientY - cy);
           el.dataset.scale = clamp(s0 * (d / d0), MIN_SCALE, MAX_SCALE);
           applyTransform(el);
+          growToFit(el);
         },
         end() { sizeBoard(); persist(el); },
       },
@@ -396,6 +406,18 @@ function renderAuth() {
   // surface a way back out once you're in.
   authControl.innerHTML = authed ? '<button id="logout">log out</button>' : "";
   if (authed) document.getElementById("logout").onclick = logout;
+}
+
+function growToFit(el) {
+  const margin = 80;
+  const b = board.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  const right = r.right - b.left + margin;
+  const bottom = r.bottom - b.top + margin;
+  const curW = parseFloat(board.style.minWidth) || 0;
+  const curH = parseFloat(board.style.minHeight) || 0;
+  if (right > curW) board.style.minWidth = Math.max(right, window.innerWidth) + "px";
+  if (bottom > curH) board.style.minHeight = Math.max(bottom, window.innerHeight) + "px";
 }
 
 // the shareable secret link for a private board: the password rides in the URL
@@ -476,6 +498,11 @@ let unlockKey = null;
     history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : ""));
   }
 
+  // kick off the board items (the heaviest payload — images ride inline) right
+  // away, in parallel with the auth/boards chrome. It only needs the login
+  // cookie, which the ?key= exchange above has already set.
+  loadBoard();
+
   const [who, boards] = await Promise.all([
     fetch("/api/whoami").then(r => r.json()).catch(() => ({ authed: false })),
     fetch("/api/boards").then(r => r.json()).catch(() => []),
@@ -484,5 +511,4 @@ let unlockKey = null;
   renderBoards(boards);
   renderOwnerControls(boards);
   renderAuth();
-  loadBoard();
 })();
