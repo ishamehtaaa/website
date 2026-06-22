@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS scrapbook (
   x REAL NOT NULL DEFAULT 40,
   y REAL NOT NULL DEFAULT 40,
   rotation REAL NOT NULL DEFAULT 0,
+  scale REAL NOT NULL DEFAULT 1,          -- uniform resize factor (drag handle / pinch)
   z INTEGER NOT NULL DEFAULT 0,           -- stacking order; bumped on drag
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

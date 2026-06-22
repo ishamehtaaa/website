@@ -88,10 +88,12 @@ function renderItem(it) {
   el.dataset.id = it.id;
   el.style.left = it.x + "px";
   el.style.top = it.y + "px";
-  el.style.transform = `rotate(${it.rotation}deg)`;
   el.style.zIndex = it.z;
   el.dataset.rot = it.rotation;
+  el.dataset.scale = it.scale != null ? it.scale : 1;
+  applyTransform(el);
   el.innerHTML = itemInner(it);
+  el.insertAdjacentHTML("beforeend", '<div class="handle" aria-hidden="true"></div>');
   topZ = Math.max(topZ, it.z);
   makeDraggable(el);
   board.appendChild(el);
@@ -99,11 +101,59 @@ function renderItem(it) {
   return el;
 }
 
+// grow the board to encompass every item (+ margin) so off-screen items stay
+// reachable by scrolling/panning on mobile. no-op visually on desktop, where
+// the board is already clamped to the viewport.
+function sizeBoard() {
+  const margin = 80;
+  const b = board.getBoundingClientRect();
+  let maxRight = 0, maxBottom = 0;
+  // getBoundingClientRect includes the transform scale, so scaled-up items are
+  // measured by their true visual extent; subtracting the board origin converts
+  // to board coords (both shift together under scroll)
+  board.querySelectorAll(".item").forEach(el => {
+    const r = el.getBoundingClientRect();
+    maxRight = Math.max(maxRight, r.right - b.left);
+    maxBottom = Math.max(maxBottom, r.bottom - b.top);
+  });
+  // never smaller than the viewport, but grow to keep every item reachable
+  board.style.minWidth = Math.max(maxRight + margin, window.innerWidth) + "px";
+  board.style.minHeight = Math.max(maxBottom + margin, window.innerHeight) + "px";
+}
+
+// re-fit when the window is resized so shrinking it exposes a scrollable area
+// instead of clipping off-screen items
+window.addEventListener("resize", sizeBoard);
+
+// shift any items that live in negative space (off the top/left, where native
+// scroll can't reach) back into positive coords, preserving relative layout,
+// and persist the correction so it's a one-time fix. gutterY clears the toolbar.
+function normalizePositions(rows) {
+  if (!rows.length) return;
+  const gutterX = 24, gutterY = 72;
+  const minX = Math.min(...rows.map(r => r.x));
+  const minY = Math.min(...rows.map(r => r.y));
+  const dx = minX < gutterX ? gutterX - minX : 0;
+  const dy = minY < gutterY ? gutterY - minY : 0;
+  if (!dx && !dy) return;
+  rows.forEach(r => {
+    r.x += dx;
+    r.y += dy;
+    fetch(`/api/scrapbook/${r.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ x: r.x, y: r.y, rotation: r.rotation, z: r.z }),
+    });
+  });
+}
+
 function loadBoard() {
   fetch("/api/scrapbook")
     .then(r => r.json())
     .then(rows => {
+      normalizePositions(rows);
       rows.forEach(renderItem);
+      sizeBoard();
     });
 }
 
@@ -132,7 +182,7 @@ async function addNote() {
     fields: [{ name: "text", label: "what's on your mind?", type: "textarea", placeholder: "type something…" }],
   });
   if (!r || !r.text) return;
-  postItem({ type: "note", content: r.text, ...freshPlacement() }).then(renderItem);
+  postItem({ type: "note", content: r.text, ...freshPlacement() }).then(renderItem).then(sizeBoard);
 }
 
 async function addLink() {
@@ -145,7 +195,7 @@ async function addLink() {
   });
   if (!r || !r.url) return;
   postItem({ type: "link", content: r.url, caption: r.caption, ...freshPlacement() })
-    .then(renderItem);
+    .then(renderItem).then(sizeBoard);
 }
 
 function addPhoto() {
@@ -164,7 +214,7 @@ fileInput.addEventListener("change", () => {
     });
     if (!r) return; // cancelled
     postItem({ type: "image", content: dataUrl, caption: r.caption, ...freshPlacement() })
-      .then(renderItem);
+      .then(renderItem).then(sizeBoard);
   });
   reader.readAsDataURL(file);
 });
@@ -185,59 +235,92 @@ function downscale(dataUrl, maxPx, cb) {
   img.src = dataUrl;
 }
 
-// ---- drag to move (+ persist) ----
-function makeDraggable(el) {
-  let startX, startY, originLeft, originTop, moved;
+// ---- interaction: drag, resize handle, pinch (+ persist) ----
+const MIN_SCALE = 0.3, MAX_SCALE = 4;
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-  el.addEventListener("pointerdown", e => {
-    if (e.target.tagName === "A") return; // let links be clicked
-    e.preventDefault();
-    moved = false;
-    startX = e.clientX;
-    startY = e.clientY;
-    originLeft = parseFloat(el.style.left);
-    originTop = parseFloat(el.style.top);
-    topZ += 1;
-    el.style.zIndex = topZ;
-    el.classList.add("dragging");
-    el.setPointerCapture(e.pointerId);
+function currentScale(el) { return parseFloat(el.dataset.scale) || 1; }
 
-    const onMove = ev => {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
-      el.style.left = originLeft + dx + "px";
-      el.style.top = originTop + dy + "px";
-    };
+function applyTransform(el) {
+  el.style.transform = `rotate(${parseFloat(el.dataset.rot) || 0}deg) scale(${currentScale(el)})`;
+}
 
-    const onUp = () => {
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.classList.remove("dragging");
-      if (moved) {
-        fetch(`/api/scrapbook/${el.dataset.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            x: parseFloat(el.style.left),
-            y: parseFloat(el.style.top),
-            rotation: parseFloat(el.dataset.rot),
-            z: topZ,
-          }),
-        });
-      }
-    };
+function bringToFront(el) {
+  topZ += 1;
+  el.style.zIndex = topZ;
+}
 
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
+function persist(el) {
+  fetch(`/api/scrapbook/${el.dataset.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      x: parseFloat(el.style.left),
+      y: parseFloat(el.style.top),
+      rotation: parseFloat(el.dataset.rot) || 0,
+      scale: currentScale(el),
+      z: parseInt(el.style.zIndex, 10) || topZ,
+    }),
   });
+}
 
-  // double-click to remove
+function makeDraggable(el) {
+  // double-click / double-tap to remove (works even if the interact CDN fails)
   el.addEventListener("dblclick", async () => {
     if (!(await confirmModal("remove this from the board?"))) return;
     fetch(`/api/scrapbook/${el.dataset.id}`, { method: "DELETE" })
-      .then(() => el.remove());
+      .then(() => { el.remove(); sizeBoard(); });
   });
+
+  if (typeof interact === "undefined") return; // library unavailable; static board
+
+  interact(el)
+    .draggable({
+      ignoreFrom: "a, .handle", // links stay clickable; the grip resizes, not moves
+      listeners: {
+        start() { bringToFront(el); el.classList.add("dragging"); },
+        move(e) {
+          el.style.left = (parseFloat(el.style.left) + e.dx) + "px";
+          el.style.top = (parseFloat(el.style.top) + e.dy) + "px";
+        },
+        end() { el.classList.remove("dragging"); sizeBoard(); persist(el); },
+      },
+    })
+    .gesturable({
+      // two-finger pinch to resize on touch
+      listeners: {
+        start() { bringToFront(el); el._s0 = currentScale(el); },
+        move(e) {
+          el.dataset.scale = clamp(el._s0 * e.scale, MIN_SCALE, MAX_SCALE);
+          applyTransform(el);
+        },
+        end() { sizeBoard(); persist(el); },
+      },
+    });
+
+  // corner grip → scale by dragging relative to the item's centre
+  const handle = el.querySelector(".handle");
+  if (handle) {
+    let cx, cy, d0, s0;
+    interact(handle).draggable({
+      listeners: {
+        start(e) {
+          bringToFront(el);
+          const r = el.getBoundingClientRect();
+          cx = r.left + r.width / 2;
+          cy = r.top + r.height / 2;
+          s0 = currentScale(el);
+          d0 = Math.hypot(e.clientX - cx, e.clientY - cy) || 1;
+        },
+        move(e) {
+          const d = Math.hypot(e.clientX - cx, e.clientY - cy);
+          el.dataset.scale = clamp(s0 * (d / d0), MIN_SCALE, MAX_SCALE);
+          applyTransform(el);
+        },
+        end() { sizeBoard(); persist(el); },
+      },
+    });
+  }
 }
 
 // ---- toolbar ----

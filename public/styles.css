@@ -1,0 +1,418 @@
+/* ============================================================
+   shared base
+   Breakpoint convention: mobile is max-width: 640px
+   ============================================================ */
+:root {
+  --bg: #0f0f0f;
+  --fg: #e0e0e0;
+  --muted: #888;
+  --gap: 24px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+}
+
+/* ============================================================
+   home page (body.home)
+   ============================================================ */
+body.home { min-height: 100vh; }
+
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: var(--gap);
+  padding: var(--gap);
+}
+
+h1 { font-weight: 500; font-size: 18px; margin: 0; }
+
+#count { color: var(--muted); font-size: 14px; }
+
+main a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--muted); font-size: 14px; }
+main a:hover { border-bottom-color: var(--fg); }
+
+/* ---- corner nav ---- */
+#nav {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  font-size: 13px;
+}
+#nav a { color: var(--muted); text-decoration: none; border-bottom: 1px dashed transparent; }
+#nav a:hover { color: var(--fg); border-bottom-color: var(--muted); }
+
+/* ---- guestbook notepad ---- */
+#guestbook {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 220px;
+  background: #fdf8e4;
+  color: #2b2b2b;
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  font-size: 12px;
+  transform: rotate(1.5deg);
+  overflow: hidden;
+}
+
+#guestbook h2 {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  background: #f4c95d;
+  color: #3a2f0b;
+}
+
+.gb-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.gb-form input,
+.gb-form textarea {
+  font: inherit;
+  border: none;
+  border-bottom: 1px solid #d8cfa6;
+  background: transparent;
+  color: #2b2b2b;
+  padding: 4px 2px;
+  resize: none;
+}
+
+.gb-form input:focus,
+.gb-form textarea:focus { outline: none; border-bottom-color: #f4c95d; }
+
+.gb-form textarea { min-height: 40px; }
+
+.gb-form button {
+  align-self: flex-end;
+  font: inherit;
+  border: none;
+  background: #3a2f0b;
+  color: #fdf8e4;
+  padding: 3px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#gb-status { font-size: 10px; color: #a08a3a; min-height: 12px; }
+
+#gb-entries {
+  list-style: none;
+  margin: 0;
+  padding: 4px 12px 12px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+#gb-entries li {
+  padding: 6px 0;
+  border-top: 1px dashed #d8cfa6;
+}
+
+#gb-entries strong { font-size: 11px; }
+#gb-entries span { color: #a08a3a; font-size: 10px; margin-left: 4px; }
+#gb-entries p { margin: 2px 0 0; line-height: 1.4; }
+
+@media (max-width: 640px) {
+  main { padding: 20px; gap: 18px; }
+
+  /* scale type up so it's readable on a phone */
+  h1 { font-size: 24px; }
+  #count { font-size: 16px; }
+  main a { font-size: 16px; }
+
+  #nav { top: 14px; left: 14px; font-size: 16px; }
+
+  #guestbook {
+    position: static;
+    width: auto;
+    margin: 16px;
+    transform: none;
+    font-size: 15px;
+  }
+  #guestbook h2 { font-size: 15px; padding: 12px 14px; }
+  .gb-form { padding: 14px; gap: 10px; }
+  .gb-form input, .gb-form textarea { padding: 8px 4px; }
+  .gb-form textarea { min-height: 56px; }
+  .gb-form button { padding: 8px 18px; }
+  #gb-status { font-size: 13px; }
+  #gb-entries strong { font-size: 14px; }
+  #gb-entries span { font-size: 13px; }
+  #gb-entries p { font-size: 14px; }
+
+  /* keep the notepad from eating the whole screen once it's inline */
+  #gb-entries { max-height: 35vh; padding: 6px 14px 14px; }
+}
+
+/* ============================================================
+   scrapbook page (body.scrapbook)
+   ============================================================ */
+html, body.scrapbook { height: 100%; }
+/* board can grow past the viewport (items live at fixed coords); let the page
+   scroll/pan so nothing is ever clipped out of reach. No scrollbars appear
+   while everything fits. */
+body.scrapbook { overflow: auto; }
+
+/* ---- toolbar ---- */
+#bar {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+#bar a { color: var(--muted); text-decoration: none; margin-right: 6px; }
+#bar a:hover { color: var(--fg); }
+
+#bar button {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid #333;
+  background: #1b1b1b;
+  color: var(--fg);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#bar button:hover { border-color: #f4c95d; color: #f4c95d; }
+
+#hint { color: var(--muted); font-size: 11px; margin-left: 4px; }
+
+/* ---- board ---- */
+/* at least the viewport, but grows to encompass every item (sized in
+   scrapbook.js) so off-screen items stay reachable by scrolling at any width */
+#board {
+  position: relative;
+  min-width: 100%;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+.item {
+  position: absolute;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  max-width: 280px;
+  /* scale grows toward bottom-right so items never overflow into negative
+     (unreachable) space; keeps top-left as the stable drag anchor */
+  transform-origin: top left;
+}
+.item.dragging { cursor: grabbing; }
+
+/* resize grip — drag away from the item's centre to grow, toward it to shrink.
+   Hidden until hover on pointer devices; always shown on touch (where pinch
+   also works). */
+.item .handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f4c95d;
+  border: 2px solid #0f0f0f;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.item:hover .handle { opacity: 1; }
+@media (hover: none) {
+  .item .handle { opacity: 1; }
+}
+
+/* note */
+.item.note {
+  background: #fdf8e4;
+  color: #2b2b2b;
+  padding: 12px 14px;
+  width: 200px;
+  border-radius: 3px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* photo — polaroid-ish frame */
+.item.image {
+  background: #fafafa;
+  padding: 8px 8px 10px;
+  border-radius: 2px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+}
+.item.image img {
+  display: block;
+  width: 220px;
+  height: auto;
+  border-radius: 1px;
+}
+.item.image .cap {
+  color: #444;
+  font-size: 11px;
+  text-align: center;
+  padding-top: 6px;
+}
+
+/* link card */
+.item.link {
+  background: #16202b;
+  border: 1px solid #2a3a4a;
+  color: #cfe3f5;
+  padding: 10px 12px;
+  width: 180px;
+  border-radius: 5px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  font-size: 12px;
+}
+.item.link a { color: #8fc7ff; text-decoration: none; word-break: break-all; }
+.item.link a:hover { text-decoration: underline; }
+.item.link .cap { color: #cfe3f5; margin-bottom: 4px; font-weight: 600; }
+
+#empty {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ---- modal ---- */
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#overlay.open { display: flex; }
+
+.modal {
+  width: min(380px, calc(100vw - 32px));
+  background: #161616;
+  border: 1px solid #2c2c2c;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  padding: 18px;
+  animation: pop 0.12s ease-out;
+}
+@keyframes pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.modal h2 {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.02em;
+}
+
+.modal label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0 0 5px;
+}
+.modal .field + .field { margin-top: 12px; }
+
+.modal input,
+.modal textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: #0f0f0f;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 9px 10px;
+  resize: none;
+}
+.modal input:focus,
+.modal textarea:focus {
+  outline: none;
+  border-color: #f4c95d;
+}
+.modal textarea { min-height: 88px; line-height: 1.45; }
+
+.modal .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.modal .actions button {
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #333;
+}
+.modal .btn-cancel {
+  background: transparent;
+  color: var(--muted);
+}
+.modal .btn-cancel:hover { color: var(--fg); border-color: #555; }
+.modal .btn-ok {
+  background: #f4c95d;
+  color: #1a1a1a;
+  border-color: #f4c95d;
+  font-weight: 600;
+}
+.modal .btn-ok:hover { background: #ffd574; }
+
+@media (max-width: 640px) {
+  #bar { flex-wrap: wrap; max-width: calc(100vw - 32px); gap: 10px; font-size: 16px; }
+  #bar a { font-size: 16px; }
+  #bar button { font-size: 15px; padding: 8px 14px; }
+  #hint { display: none; }
+
+  /* scale items up so they read on a phone */
+  .item { max-width: 86vw; }
+  .item.note { width: min(72vw, 260px); font-size: 15px; }
+  .item.link { width: min(68vw, 240px); font-size: 14px; }
+  .item.link .cap { font-size: 14px; }
+  .item.image img { width: min(80vw, 280px); }
+  .item.image .cap { font-size: 13px; }
+
+  /* bigger modal controls + tap targets */
+  .modal { padding: 22px; }
+  .modal h2 { font-size: 16px; }
+  .modal label { font-size: 14px; }
+  .modal input, .modal textarea { font-size: 16px; padding: 11px 12px; }
+  .modal .actions button { font-size: 15px; padding: 9px 18px; }
+
+  /* anchor the empty message to the viewport, not the (taller) board */
+  #empty { position: fixed; font-size: 15px; }
+}
