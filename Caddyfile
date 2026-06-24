@@ -2,3 +2,7 @@ ishamehta.ca {
     reverse_proxy app:3000
 }
 
+wiki.ishamehta.ca {
+    reverse_proxy wiki-app:2000
+}
+

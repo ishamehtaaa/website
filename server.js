@@ -287,7 +287,7 @@ const clampScale = s => Math.min(4, Math.max(0.3, Number(s) || 1));
 app.post("/api/scrapbook", (req, res) => {
   const board = boardAccess(req, res);
   if (!board) return;
-  let { type, content, caption, x, y, rotation, scale } = req.body || {};
+  let { type, content, caption, x, y, rotation, scale, mx, my, mscale } = req.body || {};
   type = SCRAP_TYPES.has(type) ? type : "note";
   content = (content || "").trim();
   caption = (caption || "").trim().slice(0, 200) || null;
@@ -301,10 +301,16 @@ app.post("/api/scrapbook", (req, res) => {
   const top = db.prepare("SELECT COALESCE(MAX(z), 0) + 1 AS z FROM scrapbook WHERE board_id = ?").get(board.id).z;
   const info = db
     .prepare(
-      `INSERT INTO scrapbook (type, content, caption, x, y, rotation, scale, z, board_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO scrapbook (type, content, caption, x, y, rotation, scale, z, mx, my, mscale, board_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(type, content, caption, Number(x) || 40, Number(y) || 40, Number(rotation) || 0, clampScale(scale), top, board.id);
+    .run(
+      type, content, caption, Number(x) || 40, Number(y) || 40, Number(rotation) || 0, clampScale(scale), top,
+      mx != null ? Number(mx) : null,
+      my != null ? Number(my) : null,
+      mscale != null ? clampScale(mscale) : null,
+      board.id
+    );
   const row = db.prepare("SELECT * FROM scrapbook WHERE id = ?").get(info.lastInsertRowid);
   res.json(row);
 });
@@ -317,10 +323,10 @@ app.patch("/api/scrapbook/:id", (req, res) => {
   const board = db.prepare("SELECT * FROM boards WHERE id = ?").get(existing.board_id);
   if (board && !boardAccess(req, res, board.slug)) return;
 
-  const { x, y, rotation, scale, z } = req.body || {};
+  const { x, y, rotation, scale, z, mx, my, mscale } = req.body || {};
   db.prepare(
     `UPDATE scrapbook SET
-       x = ?, y = ?, rotation = ?, scale = ?, z = ?
+       x = ?, y = ?, rotation = ?, scale = ?, z = ?, mx = ?, my = ?, mscale = ?
      WHERE id = ?`
   ).run(
     x != null ? Number(x) : existing.x,
@@ -328,6 +334,11 @@ app.patch("/api/scrapbook/:id", (req, res) => {
     rotation != null ? Number(rotation) : existing.rotation,
     scale != null ? clampScale(scale) : existing.scale,
     z != null ? Number(z) : existing.z,
+    // mobile layout: only the mobile client sends these, so desktop edits leave
+    // them untouched (and vice-versa)
+    mx != null ? Number(mx) : existing.mx,
+    my != null ? Number(my) : existing.my,
+    mscale != null ? clampScale(mscale) : existing.mscale,
     id
   );
   res.json({ ok: true });

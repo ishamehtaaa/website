@@ -15,6 +15,14 @@ if (!scrapCols.some(c => c.name === "scale")) {
   db.exec("ALTER TABLE scrapbook ADD COLUMN scale REAL NOT NULL DEFAULT 1");
 }
 
+// per-device mobile layout columns (nullable: NULL means "not arranged on mobile
+// yet", so the client reflows the item rather than reading a stored position)
+for (const col of ["mx", "my", "mscale"]) {
+  if (!scrapCols.some(c => c.name === col)) {
+    db.exec(`ALTER TABLE scrapbook ADD COLUMN ${col} REAL`);
+  }
+}
+
 // boards: every scrapbook item belongs to a board. older databases predate the
 // boards table, so ensure the default ("main") board exists, add board_id to
 // scrapbook if missing, then backfill any orphaned items onto the default board.

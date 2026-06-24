@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS scrapbook (
   rotation REAL NOT NULL DEFAULT 0,
   scale REAL NOT NULL DEFAULT 1,          -- uniform resize factor (drag handle / pinch)
   z INTEGER NOT NULL DEFAULT 0,           -- stacking order; bumped on drag
+  -- optional mobile layout, kept separate from x/y/scale so phones and desktops
+  -- arrange the same board independently. NULL = not yet placed on mobile, so
+  -- the client flows the item into a generated column instead.
+  mx REAL,
+  my REAL,
+  mscale REAL,
   board_id INTEGER REFERENCES boards(id), -- which board this item lives on
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

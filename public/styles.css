@@ -172,6 +172,9 @@ html, body.scrapbook { height: 100%; }
    scroll/pan so nothing is ever clipped out of reach. No scrollbars appear
    while everything fits. */
 body.scrapbook { overflow: auto; }
+/* stop the page's pull-to-refresh / rubber-band from hijacking a drag that
+   starts near the top edge on touch */
+body.scrapbook { overscroll-behavior: none; }
 
 /* ---- toolbar ---- */
 #bar {
@@ -292,7 +295,20 @@ body.scrapbook { overflow: auto; }
 }
 .item:hover .handle { opacity: 1; }
 @media (hover: none) {
-  .item .handle { opacity: 1; }
+  /* always visible on touch, and a bigger grip with a padded ~44px hit area so
+     it's actually tappable with a finger */
+  .item .handle {
+    opacity: 1;
+    width: 22px;
+    height: 22px;
+    right: -11px;
+    bottom: -11px;
+  }
+  .item .handle::before {
+    content: "";
+    position: absolute;
+    inset: -11px;
+  }
 }
 
 /* note */

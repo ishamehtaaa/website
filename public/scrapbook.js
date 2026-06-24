@@ -10,6 +10,14 @@ const modal = document.getElementById("modal");
 
 let topZ = 0;
 
+// mobile gets its own layout: items carry a separate mx/my/mscale so a phone and
+// a desktop can arrange the same board without overwriting each other. The
+// breakpoint matches the CSS one; crossing it (resize/rotate) re-renders so the
+// right coordinate set is used.
+const mq = window.matchMedia("(max-width: 640px)");
+const mobileMode = () => mq.matches;
+mq.addEventListener("change", () => location.reload());
+
 // which board this page is showing (?board=slug, default "main"). GET/POST are
 // scoped to it; PATCH/DELETE go by item id (the server gates on the item's board).
 const slug = new URLSearchParams(location.search).get("board") || "main";
@@ -95,11 +103,15 @@ function renderItem(it) {
   const el = document.createElement("div");
   el.className = `item ${it.type}`;
   el.dataset.id = it.id;
-  el.style.left = it.x + "px";
-  el.style.top = it.y + "px";
+  // on mobile, prefer the item's own mobile position; if it has none yet, drop it
+  // at its desktop coords for now — reflowMobile() repositions it after layout.
+  const useMobile = mobileMode() && it.mx != null;
+  el.style.left = (useMobile ? it.mx : it.x) + "px";
+  el.style.top = (useMobile ? it.my : it.y) + "px";
   el.style.zIndex = it.z;
   el.dataset.rot = it.rotation;
-  el.dataset.scale = it.scale != null ? it.scale : 1;
+  el.dataset.scale = (useMobile ? it.mscale : it.scale) != null
+    ? (useMobile ? it.mscale : it.scale) : 1;
   applyTransform(el);
   el.innerHTML = itemInner(it);
   el.insertAdjacentHTML("beforeend", '<div class="handle" aria-hidden="true"></div>');
@@ -119,21 +131,40 @@ function sizeBoard() {
     maxRight = Math.max(maxRight, r.right - b.left);
     maxBottom = Math.max(maxBottom, r.bottom - b.top);
   });
-  // never smaller than the viewport, but grow to keep every item reachable
+  // never smaller than the viewport, but grow to keep every item reachable.
+  // The reserved toolbar gutter (board margin-top) already eats into the page, so
+  // discount it from the height floor to avoid a permanent sliver of scroll.
+  const reserved = parseFloat(board.style.marginTop) || 0;
   board.style.minWidth = Math.max(maxRight + margin, window.innerWidth) + "px";
-  board.style.minHeight = Math.max(maxBottom + margin, window.innerHeight) + "px";
+  board.style.minHeight = Math.max(maxBottom + margin, window.innerHeight - reserved) + "px";
+}
+
+// the fixed toolbar overlays the top of the board (and on mobile it wraps into a
+// tall stack), so any item near the top sits under it and can't be grabbed —
+// there's no scroll-up room at the origin. Reserve a matching gutter above the
+// board so the topmost item always clears the bar. This is a per-device render
+// offset (board margin, not item coords), so a phone's tall bar never rewrites
+// the positions the desktop shares.
+function reserveToolbarSpace() {
+  const bar = document.getElementById("bar");
+  if (!bar || bar.hidden) return;
+  board.style.marginTop = (bar.offsetHeight + 16) + "px";
 }
 
 // re-fit when the window is resized so shrinking it exposes a scrollable area
-// instead of clipping off-screen items
-window.addEventListener("resize", sizeBoard);
+// instead of clipping off-screen items (the bar may also rewrap, changing the
+// gutter it needs)
+window.addEventListener("resize", () => { reserveToolbarSpace(); sizeBoard(); });
 
 // shift any items that live in negative space (off the top/left, where native
 // scroll can't reach) back into positive coords, preserving relative layout,
 // and persist the correction so it's a one-time fix. gutterY clears the toolbar.
 function normalizePositions(rows) {
   if (!rows.length) return;
-  const gutterX = 24, gutterY = 72;
+  // small gutters: clearing the toolbar is now the board's reserved margin
+  // (reserveToolbarSpace), so this only nudges items out of unreachable
+  // negative space back to a sane top-left.
+  const gutterX = 24, gutterY = 24;
   const minX = Math.min(...rows.map(r => r.x));
   const minY = Math.min(...rows.map(r => r.y));
   const dx = minX < gutterX ? gutterX - minX : 0;
@@ -161,9 +192,32 @@ function loadBoard() {
     .then(rows => {
       if (!rows) return;
       normalizePositions(rows);
-      rows.forEach(renderItem);
+      const els = rows.map(renderItem);
+      if (mobileMode()) reflowMobile(rows, els);
       sizeBoard();
     });
+}
+
+// items not yet arranged on mobile (mx == null) get flowed into a single centred,
+// scrollable column in the desktop reading order (top-to-bottom, then
+// left-to-right), so a collage laid out for a wide screen becomes a usable strip
+// that always fits the phone. These positions are NOT persisted — they regenerate
+// deterministically each load until the viewer drags an item, which saves its
+// mobile spot. Items that already have a mobile position are left where they are.
+function reflowMobile(rows, els) {
+  const pending = rows
+    .map((it, i) => ({ it, el: els[i] }))
+    .filter(p => p.it.mx == null)
+    .sort((a, b) => (a.it.y - b.it.y) || (a.it.x - b.it.x));
+  const vw = document.documentElement.clientWidth;
+  let cursor = 24;       // board-relative; the board's reserved margin clears the bar
+  const gap = 28;        // a little air, and slack for tilted items
+  for (const { el } of pending) {
+    const left = Math.max(12, Math.round((vw - el.offsetWidth) / 2));
+    el.style.left = left + "px";
+    el.style.top = Math.round(cursor) + "px";
+    cursor += el.offsetHeight + gap;
+  }
 }
 
 // central fetch: rejects on non-2xx and logs, so silent failures stop being silent.
@@ -198,11 +252,17 @@ function postItem(payload) {
 // drop new items somewhere near the middle, with a small random offset + tilt
 function freshPlacement() {
   const jitter = () => Math.round((Math.random() - 0.5) * 160);
-  return {
-    x: Math.round(window.scrollX + window.innerWidth / 2 - 110) + jitter(),
-    y: Math.round(window.scrollY + window.innerHeight / 2 - 60) + jitter(),
-    rotation: +((Math.random() - 0.5) * 8).toFixed(1),
-  };
+  // item top is board-relative; the board is offset down by its reserved gutter
+  // (reserveToolbarSpace), so subtract that to land items at the viewport centre
+  // rather than a gutter-height below it.
+  const boardTop = board.getBoundingClientRect().top + window.scrollY;
+  const x = Math.max(12, Math.round(window.scrollX + window.innerWidth / 2 - 110) + jitter());
+  const y = Math.round(window.scrollY + window.innerHeight / 2 - 60 - boardTop) + jitter();
+  const place = { x, y, rotation: +((Math.random() - 0.5) * 8).toFixed(1) };
+  // on mobile, also seed the item's mobile position (same board-relative spot) so
+  // it lands where the viewer is looking instead of being reflowed on next load
+  if (mobileMode()) { place.mx = x; place.my = y; }
+  return place;
 }
 
 async function addNote() {
@@ -280,40 +340,71 @@ function bringToFront(el) {
 }
 
 function persist(el) {
+  const left = parseFloat(el.style.left);
+  const top = parseFloat(el.style.top);
+  const sc = currentScale(el);
+  // mobile drags save to the mobile columns only; rotation/z are shared across
+  // both layouts. On desktop it's the original x/y/scale.
+  const pos = mobileMode()
+    ? { mx: left, my: top, mscale: sc }
+    : { x: left, y: top, scale: sc };
   api(`/api/scrapbook/${el.dataset.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      x: parseFloat(el.style.left),
-      y: parseFloat(el.style.top),
+      ...pos,
       rotation: parseFloat(el.dataset.rot) || 0,
-      scale: currentScale(el),
       z: parseInt(el.style.zIndex, 10) || topZ,
     }),
   }).catch(() => {});
 }
 
 function makeDraggable(el) {
-  // double-click / double-tap to remove (works even if the interact CDN fails)
-  el.addEventListener("dblclick", async () => {
+  // remove from the board (shared by double-click and touch long-press)
+  const del = async () => {
     if (!(await confirmModal("remove this from the board?"))) return;
     api(`/api/scrapbook/${el.dataset.id}`, { method: "DELETE" })
       .then(() => { el.remove(); sizeBoard(); })
       .catch(() => {});
+  };
+
+  // double-click to remove on desktop (works even if the interact CDN fails)
+  el.addEventListener("dblclick", del);
+
+  // touch: long-press to remove. Double-tap collides with the browser's
+  // tap-to-zoom and fires unreliably, so hold-still for 600ms instead. Any drag
+  // (pointer moves past a small threshold) or lift cancels it.
+  let lpTimer = null, lpX = 0, lpY = 0;
+  const cancelLP = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+  el.addEventListener("pointerdown", e => {
+    if (e.pointerType === "mouse") return;
+    lpX = e.clientX; lpY = e.clientY;
+    cancelLP();
+    lpTimer = setTimeout(() => { lpTimer = null; del(); }, 600);
   });
+  el.addEventListener("pointermove", e => {
+    if (lpTimer && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 10) cancelLP();
+  });
+  el.addEventListener("pointerup", cancelLP);
+  el.addEventListener("pointercancel", cancelLP);
 
   if (typeof interact === "undefined") return; // library unavailable; static board
 
   interact(el)
     .draggable({
       ignoreFrom: "a, .handle", // links stay clickable; the grip resizes, not moves
+      // pan the page when the drag nears an edge so an item can be moved across a
+      // board larger than the viewport — essential on phones, where the board is
+      // almost always bigger than the screen.
+      autoScroll: true,
       listeners: {
         start() { bringToFront(el); el.classList.add("dragging"); },
         move(e) {
           el.style.left = (parseFloat(el.style.left) + e.dx) + "px";
           el.style.top = (parseFloat(el.style.top) + e.dy) + "px";
-          growToFit(el);
         },
+        // grow the board to fit only on release: doing it every move shifted the
+        // scroll area under the finger and made the drag jitter on touch.
         end() { el.classList.remove("dragging"); sizeBoard(); persist(el); },
       },
     })
@@ -324,7 +415,6 @@ function makeDraggable(el) {
         move(e) {
           el.dataset.scale = clamp(el._s0 * e.scale, MIN_SCALE, MAX_SCALE);
           applyTransform(el);
-          growToFit(el);
         },
         end() { sizeBoard(); persist(el); },
       },
@@ -348,7 +438,6 @@ function makeDraggable(el) {
           const d = Math.hypot(e.clientX - cx, e.clientY - cy);
           el.dataset.scale = clamp(s0 * (d / d0), MIN_SCALE, MAX_SCALE);
           applyTransform(el);
-          growToFit(el);
         },
         end() { sizeBoard(); persist(el); },
       },
@@ -511,4 +600,8 @@ let unlockKey = null;
   renderBoards(boards);
   renderOwnerControls(boards);
   renderAuth();
+  // the bar's height is only known once its controls are in the DOM; reserve the
+  // gutter now and re-fit the board around the new offset.
+  reserveToolbarSpace();
+  sizeBoard();
 })();
