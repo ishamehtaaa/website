@@ -52,7 +52,7 @@ main a:hover { border-bottom-color: var(--fg); }
   left: 24px;
   font-size: 13px;
 }
-#nav a { color: var(--muted); text-decoration: none; border-bottom: 1px dashed transparent; }
+#nav a { display: block; margin-bottom: 4px; color: var(--muted); text-decoration: none; border-bottom: 1px dashed transparent; }
 #nav a:hover { color: var(--fg); border-bottom-color: var(--muted); }
 
 /* ---- guestbook notepad ---- */
@@ -484,4 +484,175 @@ body.scrapbook { overscroll-behavior: none; }
 
   /* anchor the empty message to the viewport, not the (taller) board */
   #empty { position: fixed; font-size: 15px; }
+}
+
+/* ============================================================
+   bookshelf (body.bookshelf)
+   a real-bookshelf take on a reading list: horizontal, readable
+   book spines stacked on wooden shelves, click a spine to open it.
+   ============================================================ */
+body.bookshelf {
+  min-height: 100vh;
+  /* warm, faintly woody backdrop behind the case */
+  background:
+    radial-gradient(120% 80% at 50% -10%, #1a1714 0%, var(--bg) 60%);
+}
+
+/* override the scrapbook's fixed corner #bar: a quiet, airy top strip aligned
+   with the content — restraint over chrome. no panel, no border, no blur. */
+body.bookshelf #bar {
+  position: static;
+  width: 100%; max-width: 720px;
+  margin: 0 auto;
+  flex-wrap: wrap; gap: 18px;
+  padding: 22px 20px 0;
+  background: transparent;
+  font-size: 13px;
+}
+body.bookshelf #bar .spacer { flex: 1; }
+
+/* masthead — give it room to breathe */
+#masthead { max-width: 720px; margin: 40px auto 0; padding: 0 20px; }
+#masthead h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.2px; }
+#masthead .sub { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+/* controls: filter tabs on the left, a quiet inline sort on the right */
+#controls {
+  max-width: 720px; margin: 26px auto 0; padding: 0 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+}
+#tabs { display: flex; flex-wrap: wrap; gap: 18px; }
+#tabs .tab {
+  font: inherit; font-size: 13px; cursor: pointer;
+  color: var(--muted); background: transparent;
+  border: none; border-bottom: 1.5px solid transparent;
+  padding: 2px 0;
+}
+#tabs .tab:hover { color: var(--fg); }
+#tabs .tab.active { color: var(--fg); border-bottom-color: #e9c27a; }
+
+/* sort reads as plain text, not a boxed widget */
+body.bookshelf #sort {
+  font: inherit; font-size: 12px; cursor: pointer;
+  color: var(--muted); background: transparent; border: none; padding: 2px 0;
+}
+body.bookshelf #sort:hover { color: var(--fg); }
+
+#count { max-width: 720px; margin: 14px auto 0; padding: 0 20px; color: var(--muted); font-size: 11px; }
+
+/* the bookcase — display:block resets the global `main` flex-centering rule */
+#shelf { display: block; min-height: 0; max-width: 720px; margin: 8px auto 80px; padding: 0 20px; }
+.bare { color: var(--muted); font-size: 14px; text-align: center; padding: 48px 0; }
+
+.shelf-row { position: relative; }
+/* a quiet shelf ledge under each row — a soft shadow line, not a chunky plank */
+.plank {
+  height: 4px; margin: 6px 2px 30px;
+  border-radius: 1px;
+  background: linear-gradient(#39301f, #251e16);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* a book: a flat, matte spine — like a cloth-bound book on a shelf, no gloss,
+   no fake binding, no edge. the whole spine carries the category colour. */
+.book {
+  margin: 5px 0;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+.book .spine {
+  display: flex; align-items: center; gap: 11px;
+  min-height: var(--h, 48px);
+  padding: 0 18px;
+  cursor: pointer;
+  color: #ece6da;
+  /* one hairline at the base hints depth without any plastic sheen */
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+.book:hover { transform: translateX(4px); filter: brightness(1.07); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); }
+.book.open, .book.open:hover { transform: none; filter: none; }
+
+/* a serif title against the mono meta — literary, not techy */
+.b-title {
+  font-family: Georgia, "Iowan Old Style", ui-serif, serif;
+  font-weight: 600; font-size: 15px; letter-spacing: 0.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.b-by {
+  font-family: Georgia, ui-serif, serif; font-style: italic;
+  color: rgba(255, 255, 255, 0.58); font-size: 12.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 2;
+}
+.b-meta { margin-left: auto; display: flex; align-items: center; gap: 13px; font-size: 11px; white-space: nowrap; color: rgba(255, 255, 255, 0.75); }
+.b-meta .b-cat { opacity: 0.6; text-transform: lowercase; letter-spacing: 0.4px; }
+.b-meta .b-fav { color: #f0d27a; }
+
+/* spine colour by category — flat, desaturated matte book-cloth tones */
+.book.cat-fiction    .spine { background: #5a4146; }
+.book.cat-nonfiction .spine { background: #45543f; }
+.book.cat-essay      .spine { background: #41495c; }
+.book.cat-advice     .spine { background: #5d5135; }
+.book.cat-tech       .spine { background: #4b4458; }
+.book.cat-other      .spine { background: #474440; }
+
+/* the opened book: notes + metadata, revealed in place */
+.panel {
+  background: #16140f;
+  border: 1px solid #2c2620; border-top: none;
+  padding: 14px 16px;
+  font-size: 13px;
+  animation: book-open 0.16s ease;
+}
+@keyframes book-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.panel-top { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; color: var(--muted); font-size: 12px; }
+.panel-top .k { color: #cbb98f; }
+.panel-top .open { color: #8fc7ff; text-decoration: none; border-bottom: 1px dashed; }
+.panel-top .love { color: #e88; }
+.panel-top .fav { color: #ffd969; }
+.panel .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.panel .tag { font-size: 11px; color: var(--muted); background: #211d18; border: 1px solid #322c25; border-radius: 999px; padding: 2px 9px; }
+.writeup { margin-top: 12px; white-space: pre-wrap; line-height: 1.55; color: #d8d2c7; }
+.writeup.empty { color: var(--muted); font-style: italic; }
+.writeup a { color: #8fc7ff; }
+.panel-actions { margin-top: 14px; display: flex; gap: 8px; }
+.panel-actions button, .form-actions button {
+  font: inherit; font-size: 12px; cursor: pointer;
+  background: #211d18; color: var(--fg); border: 1px solid #3a332b; border-radius: 4px; padding: 5px 12px;
+}
+.panel-actions button:hover, .form-actions button:hover { border-color: #e9c27a; color: #e9c27a; }
+.panel-actions button.armed { border-color: #e07a6b; color: #e07a6b; }
+.form-actions button.primary { background: #e9c27a; color: #1b1b1b; border-color: #e9c27a; font-weight: 600; }
+
+/* inline add/edit form (also used in the .addslot at the top of the shelf) */
+.addslot { margin: 4px 0 30px; }
+.bookform {
+  background: #15130f; border: 1px solid #2c2620; border-radius: 10px;
+  padding: 20px 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+  animation: form-open 0.2s ease; transform-origin: top center;
+}
+@keyframes form-open { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+.bookform .frow { display: flex; flex-direction: column; gap: 4px; }
+.bookform .frow.full, .bookform .form-actions { grid-column: 1 / -1; }
+.bookform .frow.check { flex-direction: row; align-items: center; }
+.bookform label { color: var(--muted); font-size: 12px; }
+.bookform input, .bookform select, .bookform textarea {
+  font: inherit; font-size: 13px; background: #0f0d0a; color: var(--fg);
+  border: 1px solid #322c25; border-radius: 4px; padding: 7px 9px; width: 100%;
+}
+.bookform .frow.check label { display: flex; align-items: center; gap: 8px; color: var(--fg); }
+.bookform .frow.check input { width: auto; }
+.bookform input:focus, .bookform select:focus, .bookform textarea:focus { outline: none; border-color: #e9c27a; }
+.bookform textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+.form-actions { display: flex; gap: 8px; margin-top: 4px; }
+
+@media (max-width: 640px) {
+  body.bookshelf #bar { gap: 12px; font-size: 14px; }
+  #masthead, #controls, #count, #shelf { padding: 0 14px; }
+  .bookform { grid-template-columns: 1fr; }
+  .book:hover { transform: none; }
+  .b-by { display: none; }
 }

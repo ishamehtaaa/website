@@ -354,6 +354,81 @@ app.delete("/api/scrapbook/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// ---- bookshelf (single public shelf; owner-only writes) ----
+const BOOK_CATEGORIES = new Set(["fiction", "nonfiction", "essay", "advice", "tech", "other"]);
+const BOOK_MEDIA = new Set(["book", "article", "essay", "blog post", "paper", "other"]);
+const clampLove = v => Math.min(10, Math.max(0, Math.round(Number(v) || 0)));
+
+// pull the writable fields off a request body, validated + normalized. `partial`
+// (PATCH) leaves unset fields as undefined so the caller can keep existing values;
+// a full insert (POST) falls back to sane defaults instead.
+function bookFields(body, partial) {
+  const b = body || {};
+  const out = {};
+  const has = k => Object.prototype.hasOwnProperty.call(b, k);
+
+  if (!partial || has("title")) out.title = String(b.title || "").trim().slice(0, 200);
+  if (!partial || has("author")) out.author = (String(b.author || "").trim().slice(0, 120)) || null;
+  if (!partial || has("url")) out.url = (String(b.url || "").trim().slice(0, 2000)) || null;
+  if (!partial || has("category"))
+    out.category = BOOK_CATEGORIES.has(b.category) ? b.category : "other";
+  if (!partial || has("medium"))
+    out.medium = BOOK_MEDIA.has(b.medium) ? b.medium : null;
+  if (!partial || has("love")) out.love = clampLove(b.love);
+  if (!partial || has("favorite")) out.favorite = b.favorite ? 1 : 0;
+  if (!partial || has("tags")) out.tags = (String(b.tags || "").trim().slice(0, 300)) || null;
+  if (!partial || has("reading_time")) {
+    const n = Number(b.reading_time);
+    out.reading_time = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+  }
+  if (!partial || has("writeup")) out.writeup = (String(b.writeup || "").trim().slice(0, 20000)) || null;
+  return out;
+}
+
+app.get("/api/bookshelf", (req, res) => {
+  const rows = db.prepare("SELECT * FROM bookshelf ORDER BY created_at DESC, id DESC").all();
+  res.json(rows);
+});
+
+app.post("/api/bookshelf", requireAuth, (req, res) => {
+  const f = bookFields(req.body, false);
+  if (!f.title) return res.status(400).json({ error: "title required" });
+  const info = db
+    .prepare(
+      `INSERT INTO bookshelf (title, author, url, category, medium, love, favorite, tags, reading_time, writeup)
+       VALUES (@title, @author, @url, @category, @medium, @love, @favorite, @tags, @reading_time, @writeup)`
+    )
+    .run(f);
+  const row = db.prepare("SELECT * FROM bookshelf WHERE id = ?").get(info.lastInsertRowid);
+  res.json(row);
+});
+
+app.patch("/api/bookshelf/:id", requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare("SELECT * FROM bookshelf WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "not found" });
+  const f = bookFields(req.body, true);
+  // a title, if provided, can't be blanked to empty
+  if ("title" in f && !f.title) return res.status(400).json({ error: "title required" });
+  const merged = { ...existing, ...f };
+  db.prepare(
+    `UPDATE bookshelf SET
+       title = @title, author = @author, url = @url, category = @category, medium = @medium,
+       love = @love, favorite = @favorite, tags = @tags, reading_time = @reading_time, writeup = @writeup
+     WHERE id = @id`
+  ).run({ ...merged, id });
+  res.json(db.prepare("SELECT * FROM bookshelf WHERE id = ?").get(id));
+});
+
+app.delete("/api/bookshelf/:id", requireAuth, (req, res) => {
+  db.prepare("DELETE FROM bookshelf WHERE id = ?").run(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+app.get("/bookshelf", (req, res) => {
+  res.sendFile(require("path").join(__dirname, "public", "bookshelf.html"));
+});
+
 app.get("/scrapbook", (req, res) => {
   res.sendFile(require("path").join(__dirname, "public", "scrapbook.html"));
 });

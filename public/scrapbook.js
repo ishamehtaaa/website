@@ -2,6 +2,28 @@
 const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// coalesce a burst of calls (e.g. many images finishing at once) into one run on
+// the next frame.
+function debounce(fn) {
+  let queued = false;
+  return () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; fn(); });
+  };
+}
+
+// run cb once an item's image has dimensions. Items measured before their image
+// loads report ~0 height (CSS gives width but height:auto), which throws off
+// board sizing and the mobile column — so anything that measures heights waits
+// for this. No image, or already loaded → run immediately.
+function whenImageReady(el, cb) {
+  const img = el.querySelector("img");
+  if (!img || img.complete) return cb();
+  img.addEventListener("load", cb, { once: true });
+  img.addEventListener("error", cb, { once: true });
+}
+
 const board = document.getElementById("board");
 const emptyMsg = document.getElementById("empty");
 const fileInput = document.getElementById("file-input");
@@ -195,6 +217,14 @@ function loadBoard() {
       const els = rows.map(renderItem);
       if (mobileMode()) reflowMobile(rows, els);
       sizeBoard();
+      // images load async and start at ~0 height, so the first pass above under-
+      // measures any item with a photo. Re-run sizing (and the mobile column) as
+      // images arrive; the debounce folds a flurry of loads into one relayout.
+      const relayout = debounce(() => {
+        if (mobileMode()) reflowMobile(rows, els);
+        sizeBoard();
+      });
+      els.forEach(el => whenImageReady(el, relayout));
     });
 }
 
@@ -249,6 +279,15 @@ function postItem(payload) {
   }).then(r => r.json());
 }
 
+// POST an item, render it, and grow the board to fit. For photos, the grow waits
+// on the image so a tall picture near the edge still extends the scrollable area.
+function placeNewItem(payload) {
+  return postItem(payload).then(renderItem).then(el => {
+    whenImageReady(el, () => growToFit(el));
+    return el;
+  });
+}
+
 // drop new items somewhere near the middle, with a small random offset + tilt
 function freshPlacement() {
   const jitter = () => Math.round((Math.random() - 0.5) * 160);
@@ -271,7 +310,7 @@ async function addNote() {
     fields: [{ name: "text", label: "what's on your mind?", type: "textarea", placeholder: "type something…" }],
   });
   if (!r || !r.text) return;
-  postItem({ type: "note", content: r.text, ...freshPlacement() }).then(renderItem).then(growToFit);
+  placeNewItem({ type: "note", content: r.text, ...freshPlacement() });
 }
 
 async function addLink() {
@@ -283,8 +322,7 @@ async function addLink() {
     ],
   });
   if (!r || !r.url) return;
-  postItem({ type: "link", content: r.url, caption: r.caption, ...freshPlacement() })
-    .then(renderItem).then(growToFit);
+  placeNewItem({ type: "link", content: r.url, caption: r.caption, ...freshPlacement() });
 }
 
 function addPhoto() {
@@ -302,8 +340,7 @@ fileInput.addEventListener("change", () => {
       fields: [{ name: "caption", label: "caption (optional)", type: "text", placeholder: "say something…" }],
     });
     if (!r) return; // cancelled
-    postItem({ type: "image", content: dataUrl, caption: r.caption, ...freshPlacement() })
-      .then(renderItem).then(growToFit);
+    placeNewItem({ type: "image", content: dataUrl, caption: r.caption, ...freshPlacement() });
   });
   reader.readAsDataURL(file);
 });
@@ -535,34 +572,36 @@ async function newBoard() {
     okLabel: "create",
   });
   if (!r || !r.title) return;
-  const res = await fetch("/api/boards", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title: r.title, visibility: r.visibility }),
-  });
-  if (!res.ok) return;
-  const created = await res.json();
+  let created;
+  try {
+    const res = await api("/api/boards", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: r.title, visibility: r.visibility }),
+    });
+    created = await res.json();
+  } catch { return; }
   location.href = `/scrapbook?board=${encodeURIComponent(created.slug)}`;
 }
 
 async function toggleVisibility(b) {
   const next = b.visibility === "private" ? "public" : "private";
-  await fetch(`/api/boards/${encodeURIComponent(b.slug)}`, {
+  await api(`/api/boards/${encodeURIComponent(b.slug)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ visibility: next }),
-  });
+  }).catch(() => {});
   location.reload();
 }
 
 async function deleteBoard(b) {
   if (!(await confirmModal(`delete "${b.title}" and everything on it?`, "delete"))) return;
-  await fetch(`/api/boards/${encodeURIComponent(b.slug)}`, { method: "DELETE" });
+  await api(`/api/boards/${encodeURIComponent(b.slug)}`, { method: "DELETE" }).catch(() => {});
   location.href = "/scrapbook";
 }
 
 async function logout() {
-  await fetch("/api/logout", { method: "POST" });
+  await api("/api/logout", { method: "POST" }).catch(() => {});
   location.href = "/scrapbook"; // drop any private ?board= and land on the public one
 }
 
@@ -577,7 +616,7 @@ let unlockKey = null;
     unlockKey = key;
     // exchange the key for a session cookie, then scrub it from the address bar
     // so the password doesn't sit in the URL after the page loads.
-    await fetch("/api/login", {
+    await api("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: key }),
