@@ -41,4 +41,11 @@ db.prepare("UPDATE scrapbook SET board_id = ? WHERE board_id IS NULL").run(defau
 // safe now that board_id is guaranteed to exist on both fresh and migrated DBs
 db.exec("CREATE INDEX IF NOT EXISTS idx_scrapbook_board ON scrapbook(board_id)");
 
+// bookshelf reading-queue: older databases predate the `status` column that
+// separates read entries from the "on my list" queue. default existing rows to 'read'.
+const bookCols = db.prepare("PRAGMA table_info(bookshelf)").all();
+if (!bookCols.some(c => c.name === "status")) {
+  db.exec("ALTER TABLE bookshelf ADD COLUMN status TEXT NOT NULL DEFAULT 'read'");
+}
+
 module.exports = db;

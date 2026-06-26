@@ -31,7 +31,6 @@ function richText(s) {
 // must mirror the allow-sets in server.js
 const CATEGORIES = ["fiction", "nonfiction", "essay", "advice", "tech", "other"];
 const MEDIA = ["book", "article", "essay", "blog post", "paper", "other"];
-const SHELF_SIZE = 6; // books per wooden shelf
 
 // ---- state ----
 let entries = [];          // every book, newest first from the server
@@ -41,20 +40,25 @@ let openId = null;         // expanded (read) book, or null
 let editingId = null;      // book whose panel is showing the edit form, or null
 let adding = false;        // the add form is open at the top
 let armedDelete = null;    // id whose delete button is armed for the second click
-let tab = "all";           // active filter tab: 'all' | 'favorites' | <category>
+let tab = "all";           // active filter tab: 'all' | 'favorites' | 'queue' | <category>
 let sortKey = "default";
 
 // ---- DOM ----
 const shelf = document.getElementById("shelf");
 const tabsEl = document.getElementById("tabs");
-const countEl = document.getElementById("count");
+const totalEl = document.getElementById("total");
 const sortEl = document.getElementById("sort");
 const ownerAdd = document.getElementById("owner-add");
 const authControl = document.getElementById("auth-control");
 
+const isQueue = b => b.status === "queue";
+
 // ---- view: filter + sort ----
 function visible() {
   return entries.filter(b => {
+    // the "on my list" queue lives in its own tab; every other view is read-only items
+    if (tab === "queue") return isQueue(b);
+    if (isQueue(b)) return false;
     if (tab === "favorites") return !!b.favorite;
     if (tab !== "all") return b.category === tab;
     return true;
@@ -97,7 +101,8 @@ function formHtml(b) {
     <div class="frow"><label>reading time</label><input name="reading_time" type="number" min="1" value="${b.reading_time != null ? b.reading_time : ""}" placeholder="minutes" /></div>
     <div class="frow"><label>tags</label><input name="tags" value="${esc(b.tags)}" maxlength="300" placeholder="comma, separated" /></div>
     <div class="frow check"><label><input name="favorite" type="checkbox"${b.favorite ? " checked" : ""} /> favorite ★</label></div>
-    <div class="frow full"><label>writeup</label><textarea name="writeup" maxlength="20000" placeholder="learnings, snippets, comments…">${esc(b.writeup)}</textarea></div>
+    <div class="frow check"><label><input name="queue" type="checkbox"${isQueue(b) ? " checked" : ""} /> on my list — haven't read yet</label></div>
+    <div class="frow full"><label>writeup <span class="hint">(or, for the queue: why you want to read it)</span></label><textarea name="writeup" maxlength="20000" placeholder="learnings, snippets, comments…">${esc(b.writeup)}</textarea></div>
     <div class="form-actions">
       <button type="submit" class="primary">save</button>
       <button type="button" data-action="cancel">cancel</button>
@@ -106,65 +111,96 @@ function formHtml(b) {
 }
 
 function readPanel(b) {
+  const queued = isQueue(b);
   const bits = [];
   bits.push(`<span class="k">${esc(b.category)}${b.medium ? " · " + esc(b.medium) : ""}</span>`);
   if (b.url) bits.push(`<a class="open" href="${esc(b.url)}" target="_blank" rel="noopener">open ↗</a>`);
-  bits.push(`<span class="love">♥ ${b.love}</span>`);
+  if (!queued) bits.push(`<span class="love">♥ ${b.love}</span>`);
   if (b.favorite) bits.push(`<span class="fav">★ favorite</span>`);
   if (b.reading_time) bits.push(`<span class="rt">${b.reading_time}m read</span>`);
-  const actions = authed
-    ? `<div class="panel-actions">
-         <button data-action="edit" data-id="${b.id}">edit</button>
-         <button data-action="delete" data-id="${b.id}"${armedDelete === b.id ? ' class="armed"' : ""}>${armedDelete === b.id ? "remove?" : "delete"}</button>
-       </div>`
-    : "";
+  const placeholder = queued ? "no note yet — just on the list." : "no notes yet";
+  let actions = "";
+  if (authed) {
+    actions = `<div class="panel-actions">
+      ${queued ? `<button data-action="markread" data-id="${b.id}" class="mark">✓ mark as read</button>` : ""}
+      <button data-action="edit" data-id="${b.id}">edit</button>
+      <button data-action="delete" data-id="${b.id}"${armedDelete === b.id ? ' class="armed"' : ""}>${armedDelete === b.id ? "remove?" : "delete"}</button>
+    </div>`;
+  }
   return `<div class="panel">
     <div class="panel-top">${bits.join("")}</div>
     ${tagChips(b.tags)}
-    ${b.writeup ? `<div class="writeup">${richText(b.writeup)}</div>` : `<div class="writeup empty">no notes yet</div>`}
+    ${b.writeup ? `<div class="writeup">${richText(b.writeup)}</div>` : `<div class="writeup empty">${placeholder}</div>`}
     ${actions}
   </div>`;
 }
 
-// deterministic per-book "thickness" so spines vary like real books without
-// reshuffling on every render
-const thickness = id => 44 + ((id * 7) % 4) * 3;
-
-function bookHtml(b) {
+function rowHtml(b) {
   const open = b.id === openId;
-  const meta = [`<span class="b-cat">${esc(b.category)}</span>`, `<span class="b-love">♥ ${b.love}</span>`];
-  if (b.favorite) meta.push(`<span class="b-fav">★</span>`);
-  if (b.reading_time) meta.push(`<span class="b-rt">${b.reading_time}m</span>`);
+  const queued = isQueue(b);
+  const cls = [`entry`, `cat-${esc(b.category)}`];
+  if (open) cls.push("open");
+  if (b.favorite) cls.push("fav");
+  if (queued) cls.push("queue");
   const inner = b.id === editingId ? formHtml(b) : open ? readPanel(b) : "";
-  return `<article class="book cat-${esc(b.category)}${open ? " open" : ""}" style="--h:${thickness(b.id)}px">
-    <div class="spine" data-action="toggle" data-id="${b.id}">
-      <span class="b-title">${esc(b.title)}</span>
-      ${b.author ? `<span class="b-by">· ${esc(b.author)}</span>` : ""}
-      <span class="b-meta">${meta.join("")}</span>
+  const love = queued ? `<span class="r-love muted">—</span>` : `<span class="r-love">♥&nbsp;${b.love}</span>`;
+  const time = b.reading_time ? `${b.reading_time}m` : "—";
+  return `<article class="${cls.join(" ")}">
+    <div class="row" data-action="toggle" data-id="${b.id}">
+      <span class="r-name">
+        <span class="marker" aria-hidden="true"></span>
+        <span class="r-title">${esc(b.title)}</span>
+        ${b.author ? `<span class="r-by">${esc(b.author)}</span>` : ""}
+      </span>
+      <span class="r-cat">${esc(b.category)}</span>
+      ${love}
+      <span class="r-time muted">${time}</span>
+      <span class="r-x" aria-hidden="true">+</span>
     </div>
     ${inner}
   </article>`;
 }
 
 function render() {
-  // tabs reflect the categories actually present, in canonical order
-  const present = CATEGORIES.filter(c => entries.some(b => b.category === c));
-  const tabList = ["all", "favorites", ...present];
-  const label = t => t === "all" ? "all" : t === "favorites" ? "★ favorites" : t;
+  const read = entries.filter(b => !isQueue(b));
+  const queued = entries.filter(isQueue);
+
+  totalEl.textContent = `(${entries.length})`;
+
+  // tabs reflect the categories actually present (among read items), in canonical order
+  const present = CATEGORIES.filter(c => read.some(b => b.category === c));
+  const tabList = ["all", "favorites", "queue", ...present];
+  const count = t => {
+    if (t === "all") return read.length;
+    if (t === "favorites") return read.filter(b => b.favorite).length;
+    if (t === "queue") return queued.length;
+    return read.filter(b => b.category === t).length;
+  };
+  const label = t => t === "all" ? "all" : t === "favorites" ? "★ favorites" : t === "queue" ? "on my list" : t;
   tabsEl.innerHTML = tabList.map(t =>
-    `<button class="tab${t === tab ? " active" : ""}" data-tab="${esc(t)}">${esc(label(t))}</button>`).join("");
+    `<button class="tab${t === tab ? " active" : ""}" data-tab="${esc(t)}">${esc(label(t))} <span class="cnt">${count(t)}</span></button>`
+  ).join("");
 
   const list = visible().sort(SORTS[sortKey] || SORTS.default);
-  countEl.textContent = `${list.length} of ${entries.length} ${entries.length === 1 ? "entry" : "entries"}`;
 
-  // group books onto wooden shelves
   let html = adding ? `<div class="addslot">${formHtml(null)}</div>` : "";
+
   if (!list.length && !adding) {
-    html += `<p class="bare">${entries.length ? "nothing matches." : "the shelf is empty."}</p>`;
-  }
-  for (let i = 0; i < list.length; i += SHELF_SIZE) {
-    const group = list.slice(i, i + SHELF_SIZE).map(bookHtml).join("");
-    html += `<div class="shelf-row">${group}<div class="plank"></div></div>`;
+    const msg = tab === "queue"
+      ? "nothing on the list yet."
+      : entries.length ? "nothing matches." : "no notes yet.";
+    html += `<p class="bare">${msg}</p>`;
+  } else if (list.length) {
+    // a Stripe-style column header, then the rows as a clean table
+    html += `<div class="listhead">
+      <span class="lh-name">/ name</span>
+      <span class="lh-cat">/ category</span>
+      <span class="lh-love">/ ♥</span>
+      <span class="lh-time">/ time</span>
+      <span class="lh-x"></span>
+    </div>`;
+    html += `<div class="rows">${list.map(rowHtml).join("")}</div>`;
+    html += `<p class="showing">${list.length} of ${tab === "queue" ? queued.length : read.length} shown</p>`;
   }
   shelf.innerHTML = html;
 
@@ -196,6 +232,7 @@ function gather(form) {
     reading_time: get("reading_time").value,
     tags: get("tags").value,
     favorite: get("favorite").checked,
+    status: get("queue").checked ? "queue" : "read",
     writeup: get("writeup").value,
   };
 }
@@ -219,6 +256,8 @@ async function save(form) {
       entries.unshift(row);
       adding = false;
       openId = row.id;
+      // jump to the tab where the new entry will actually show
+      tab = row.status === "queue" ? "queue" : "all";
     }
     render();
   } catch { /* api() already logged */ }
@@ -230,6 +269,20 @@ async function remove(id) {
     entries = entries.filter(b => b.id !== id);
     if (openId === id) openId = null;
     armedDelete = null;
+    render();
+  } catch { /* logged */ }
+}
+
+// flip a queued entry to 'read' in place
+async function markRead(id) {
+  try {
+    const res = await api(`/api/bookshelf/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "read" }),
+    });
+    const row = await res.json();
+    entries = entries.map(b => (b.id === row.id ? row : b));
     render();
   } catch { /* logged */ }
 }
@@ -255,6 +308,8 @@ shelf.addEventListener("click", e => {
   } else if (action === "delete") {
     if (armedDelete === id) remove(id);          // second click confirms
     else { armedDelete = id; render(); }         // first click arms
+  } else if (action === "markread") {
+    markRead(id);
   } else if (action === "cancel") {
     adding = false;
     editingId = null;

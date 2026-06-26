@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>isha's bookshelf</title>
+  <title>isha's notes</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body class="bookshelf">
@@ -16,21 +16,23 @@
   </div>
 
   <header id="masthead">
-    <h1>my notes</h1>
+    <h1>my notes<sup id="total"></sup></h1>
     <p class="sub">links, learnings, and writeups for things i loved.</p>
   </header>
 
   <div id="controls">
     <nav id="tabs"></nav>
-    <select id="sort" aria-label="sort">
-      <option value="default">favorites first</option>
-      <option value="love">♥ score</option>
-      <option value="recent">recently added</option>
-      <option value="title">title a–z</option>
-      <option value="time">reading time</option>
-    </select>
+    <div class="sort-wrap">
+      <span class="sort-label">/ sort</span>
+      <select id="sort" aria-label="sort">
+        <option value="default">favorites first</option>
+        <option value="love">♥ score</option>
+        <option value="recent">recently added</option>
+        <option value="title">title a–z</option>
+        <option value="time">reading time</option>
+      </select>
+    </div>
   </div>
-  <p id="count"></p>
 
   <main id="shelf"></main>
 

@@ -357,6 +357,7 @@ app.delete("/api/scrapbook/:id", (req, res) => {
 // ---- bookshelf (single public shelf; owner-only writes) ----
 const BOOK_CATEGORIES = new Set(["fiction", "nonfiction", "essay", "advice", "tech", "other"]);
 const BOOK_MEDIA = new Set(["book", "article", "essay", "blog post", "paper", "other"]);
+const BOOK_STATUS = new Set(["read", "queue"]);
 const clampLove = v => Math.min(10, Math.max(0, Math.round(Number(v) || 0)));
 
 // pull the writable fields off a request body, validated + normalized. `partial`
@@ -382,6 +383,7 @@ function bookFields(body, partial) {
     out.reading_time = Number.isFinite(n) && n > 0 ? Math.round(n) : null;
   }
   if (!partial || has("writeup")) out.writeup = (String(b.writeup || "").trim().slice(0, 20000)) || null;
+  if (!partial || has("status")) out.status = BOOK_STATUS.has(b.status) ? b.status : "read";
   return out;
 }
 
@@ -395,8 +397,8 @@ app.post("/api/bookshelf", requireAuth, (req, res) => {
   if (!f.title) return res.status(400).json({ error: "title required" });
   const info = db
     .prepare(
-      `INSERT INTO bookshelf (title, author, url, category, medium, love, favorite, tags, reading_time, writeup)
-       VALUES (@title, @author, @url, @category, @medium, @love, @favorite, @tags, @reading_time, @writeup)`
+      `INSERT INTO bookshelf (title, author, url, category, medium, love, favorite, tags, reading_time, writeup, status)
+       VALUES (@title, @author, @url, @category, @medium, @love, @favorite, @tags, @reading_time, @writeup, @status)`
     )
     .run(f);
   const row = db.prepare("SELECT * FROM bookshelf WHERE id = ?").get(info.lastInsertRowid);
@@ -414,7 +416,8 @@ app.patch("/api/bookshelf/:id", requireAuth, (req, res) => {
   db.prepare(
     `UPDATE bookshelf SET
        title = @title, author = @author, url = @url, category = @category, medium = @medium,
-       love = @love, favorite = @favorite, tags = @tags, reading_time = @reading_time, writeup = @writeup
+       love = @love, favorite = @favorite, tags = @tags, reading_time = @reading_time, writeup = @writeup,
+       status = @status
      WHERE id = @id`
   ).run({ ...merged, id });
   res.json(db.prepare("SELECT * FROM bookshelf WHERE id = ?").get(id));

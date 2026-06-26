@@ -57,5 +57,6 @@ CREATE TABLE IF NOT EXISTS bookshelf (
   tags TEXT,                                -- comma-separated; parsed to chips client-side
   reading_time INTEGER,                     -- minutes, optional/manual
   writeup TEXT,                             -- plain-text notes
+  status TEXT NOT NULL DEFAULT 'read',      -- 'read' | 'queue' (the "on my list" reading queue)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

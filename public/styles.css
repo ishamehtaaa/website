@@ -1,12 +1,79 @@
 /* ============================================================
    shared base
    Breakpoint convention: mobile is max-width: 640px
+
+   THEME TOKENS — the single source of truth for colour. Every page reads
+   from these; the one prefers-color-scheme block below is the only place
+   light mode is defined. Add a colour here, not a literal in a rule.
+
+   What themes vs. what doesn't: the *chrome* (page, toolbar, modals, text,
+   borders, the whole bookshelf) flips with the OS theme. The scrapbook's
+   physical *materials* — sticky notes, the guestbook notepad, polaroid
+   photo frames, link cards — keep their paper/material palette in both
+   themes on purpose (a scrapbook has cream paper in any lighting), so those
+   few colours stay literal below and are intentionally not tokenised.
    ============================================================ */
 :root {
-  --bg: #0f0f0f;
-  --fg: #e0e0e0;
-  --muted: #888;
+  /* surfaces */
+  --bg:       #0f0f0f;  /* page */
+  --surface:  #181818;  /* raised chrome: toolbar buttons, modals, panels, forms */
+  --field:    #0f0f0f;  /* input backgrounds */
+  --hover:    #161616;  /* subtle hover wash */
+  --active:   #1c1813;  /* selected / open / active wash (faintly warm) */
+
+  /* text */
+  --fg:       #e6e6e6;  /* primary */
+  --strong:   #ffffff;  /* emphasised / hovered */
+  --muted:    #8a8a8a;  /* secondary, labels */
+  --faint:    #6a6a6a;  /* hints */
+
+  /* lines */
+  --line:     #1f1f1f;  /* hairline dividers */
+  --edge:     #333333;  /* borders, boxes */
+
+  /* accents */
+  --accent:        #e9c27a;  /* gold highlight */
+  --accent-hover:  #ffd574;  /* brighter gold for hover on fills */
+  --accent-ink:    #1a1a1a;  /* text/icon sitting on an accent fill */
+  --love:          #d98c8c;  /* the ♥ score */
+  --link:          #8fc7ff;  /* inline links in content */
+  --danger:        #e07a6b;  /* armed delete */
+  --positive:      #7faf5f;  /* mark-as-read */
+
+  /* effects */
+  --shadow:   rgba(0, 0, 0, 0.45);
+  --overlay:  rgba(0, 0, 0, 0.55);
+
   --gap: 24px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:       #fbfbf9;
+    --surface:  #ffffff;
+    --field:    #ffffff;
+    --hover:    #f3f1ec;
+    --active:   #efe9da;
+
+    --fg:       #1c1c1a;
+    --strong:   #000000;
+    --muted:    #6f6d68;
+    --faint:    #9a978f;
+
+    --line:     #ebe9e4;
+    --edge:     #d8d5cf;
+
+    --accent:        #a87a18;  /* darker gold so it reads on a light page */
+    --accent-hover:  #c08f22;
+    --accent-ink:    #ffffff;
+    --love:          #c0506a;
+    --link:          #2563c9;
+    --danger:        #c0392b;
+    --positive:      #4a7a35;
+
+    --shadow:   rgba(0, 0, 0, 0.12);
+    --overlay:  rgba(0, 0, 0, 0.30);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -194,14 +261,14 @@ body.scrapbook { overscroll-behavior: none; }
 #bar button {
   font: inherit;
   font-size: 12px;
-  border: 1px solid #333;
-  background: #1b1b1b;
+  border: 1px solid var(--edge);
+  background: var(--surface);
   color: var(--fg);
   padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
 }
-#bar button:hover { border-color: #f4c95d; color: #f4c95d; }
+#bar button:hover { border-color: var(--accent); color: var(--accent); }
 
 #hint { color: var(--muted); font-size: 11px; margin-left: 4px; }
 
@@ -216,7 +283,7 @@ body.scrapbook { overscroll-behavior: none; }
   margin: 0;
 }
 #boards a:hover { color: var(--fg); }
-#boards a.active { color: #f4c95d; border-color: #333; background: #1b1b1b; }
+#boards a.active { color: var(--accent); border-color: var(--edge); background: var(--active); }
 
 #owner-controls, #add-controls, #auth-control { display: inline-flex; align-items: center; gap: 8px; }
 #owner-controls[hidden], #add-controls[hidden] { display: none; }
@@ -246,12 +313,12 @@ body.scrapbook { overscroll-behavior: none; }
   font: inherit;
   font-size: 13px;
   color: var(--fg);
-  background: #0f0f0f;
-  border: 1px solid #333;
+  background: var(--field);
+  border: 1px solid var(--edge);
   border-radius: 6px;
   padding: 9px 10px;
 }
-.modal select:focus { outline: none; border-color: #f4c95d; }
+.modal select:focus { outline: none; border-color: var(--accent); }
 
 /* ---- board ---- */
 /* at least the viewport, but grows to encompass every item (sized in
@@ -285,9 +352,9 @@ body.scrapbook { overscroll-behavior: none; }
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #f4c95d;
-  border: 2px solid #0f0f0f;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 1px 4px var(--shadow);
   cursor: nwse-resize;
   touch-action: none;
   opacity: 0;
@@ -379,7 +446,7 @@ body.scrapbook { overscroll-behavior: none; }
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--overlay);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
@@ -387,10 +454,10 @@ body.scrapbook { overscroll-behavior: none; }
 
 .modal {
   width: min(380px, calc(100vw - 32px));
-  background: #161616;
-  border: 1px solid #2c2c2c;
+  background: var(--surface);
+  border: 1px solid var(--edge);
   border-radius: 10px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 60px var(--shadow);
   padding: 18px;
   animation: pop 0.12s ease-out;
 }
@@ -421,8 +488,8 @@ body.scrapbook { overscroll-behavior: none; }
   font: inherit;
   font-size: 13px;
   color: var(--fg);
-  background: #0f0f0f;
-  border: 1px solid #333;
+  background: var(--field);
+  border: 1px solid var(--edge);
   border-radius: 6px;
   padding: 9px 10px;
   resize: none;
@@ -430,7 +497,7 @@ body.scrapbook { overscroll-behavior: none; }
 .modal input:focus,
 .modal textarea:focus {
   outline: none;
-  border-color: #f4c95d;
+  border-color: var(--accent);
 }
 .modal textarea { min-height: 88px; line-height: 1.45; }
 
@@ -446,20 +513,20 @@ body.scrapbook { overscroll-behavior: none; }
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
-  border: 1px solid #333;
+  border: 1px solid var(--edge);
 }
 .modal .btn-cancel {
   background: transparent;
   color: var(--muted);
 }
-.modal .btn-cancel:hover { color: var(--fg); border-color: #555; }
+.modal .btn-cancel:hover { color: var(--fg); border-color: var(--muted); }
 .modal .btn-ok {
-  background: #f4c95d;
-  color: #1a1a1a;
-  border-color: #f4c95d;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
   font-weight: 600;
 }
-.modal .btn-ok:hover { background: #ffd574; }
+.modal .btn-ok:hover { background: var(--accent-hover); }
 
 @media (max-width: 640px) {
   #bar { flex-wrap: wrap; max-width: calc(100vw - 32px); gap: 10px; font-size: 16px; }
@@ -488,150 +555,176 @@ body.scrapbook { overscroll-behavior: none; }
 
 /* ============================================================
    bookshelf (body.bookshelf)
-   a real-bookshelf take on a reading list: horizontal, readable
-   book spines stacked on wooden shelves, click a spine to open it.
+   an editorial reading log: a clean, monospace, Stripe-style index
+   of links + writeups, with an "on my list" reading queue.
+
+   it reads entirely from the shared theme tokens at the top of this file,
+   so light mode needs no bookshelf-specific override.
    ============================================================ */
 body.bookshelf {
+  --bs-w: 880px;   /* content column width (layout only, not a colour) */
   min-height: 100vh;
-  /* warm, faintly woody backdrop behind the case */
-  background:
-    radial-gradient(120% 80% at 50% -10%, #1a1714 0%, var(--bg) 60%);
 }
 
-/* override the scrapbook's fixed corner #bar: a quiet, airy top strip aligned
-   with the content — restraint over chrome. no panel, no border, no blur. */
+/* override the scrapbook's fixed corner #bar: a quiet top strip aligned with the
+   content, with boxed mono action buttons on the right. */
 body.bookshelf #bar {
   position: static;
-  width: 100%; max-width: 720px;
+  width: 100%; max-width: var(--bs-w);
   margin: 0 auto;
-  flex-wrap: wrap; gap: 18px;
-  padding: 22px 20px 0;
+  flex-wrap: wrap; gap: 18px; align-items: center;
+  padding: 22px 24px 0;
   background: transparent;
   font-size: 13px;
 }
+body.bookshelf #bar a { color: var(--muted); }
+body.bookshelf #bar a:hover { color: var(--fg); }
 body.bookshelf #bar .spacer { flex: 1; }
+body.bookshelf #bar button {
+  font: inherit; font-size: 12px; cursor: pointer;
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--edge); border-radius: 5px; padding: 5px 12px;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+body.bookshelf #bar button:hover { color: var(--fg); border-color: var(--muted); }
 
-/* masthead — give it room to breathe */
-#masthead { max-width: 720px; margin: 40px auto 0; padding: 0 20px; }
-#masthead h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.2px; }
-#masthead .sub { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+/* masthead — a big, tight headline with a superscript count, à la Stripe */
+#masthead { max-width: var(--bs-w); margin: 46px auto 0; padding: 0 24px; }
+#masthead h1 {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(40px, 9vw, 64px); font-weight: 700;
+  letter-spacing: -0.03em; line-height: 0.95; margin: 0; color: var(--fg);
+}
+#masthead h1 sup {
+  font-size: 0.28em; font-weight: 500; vertical-align: super;
+  color: var(--muted); letter-spacing: 0; margin-left: 0.25em; top: -0.1em;
+}
+#masthead .sub { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
 
 /* controls: filter tabs on the left, a quiet inline sort on the right */
 #controls {
-  max-width: 720px; margin: 26px auto 0; padding: 0 20px;
+  max-width: var(--bs-w); margin: 30px auto 0; padding: 0 24px;
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: 12px;
 }
-#tabs { display: flex; flex-wrap: wrap; gap: 18px; }
+#tabs { display: flex; flex-wrap: wrap; gap: 4px; }
 #tabs .tab {
-  font: inherit; font-size: 13px; cursor: pointer;
+  font: inherit; font-size: 12.5px; cursor: pointer;
   color: var(--muted); background: transparent;
-  border: none; border-bottom: 1.5px solid transparent;
-  padding: 2px 0;
+  border: 1px solid transparent; border-radius: 6px;
+  padding: 5px 10px;
+  transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
 }
-#tabs .tab:hover { color: var(--fg); }
-#tabs .tab.active { color: var(--fg); border-bottom-color: #e9c27a; }
+#tabs .tab:hover { color: var(--fg); background: var(--hover); }
+#tabs .tab.active { color: var(--fg); background: var(--active); }
+#tabs .tab .cnt { color: var(--faint); font-size: 11px; }
+#tabs .tab.active .cnt { color: var(--accent); }
 
-/* sort reads as plain text, not a boxed widget */
+.sort-wrap { display: inline-flex; align-items: center; gap: 7px; }
+.sort-label { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; }
 body.bookshelf #sort {
   font: inherit; font-size: 12px; cursor: pointer;
-  color: var(--muted); background: transparent; border: none; padding: 2px 0;
+  color: var(--fg); background: transparent; border: none; padding: 2px 0;
 }
-body.bookshelf #sort:hover { color: var(--fg); }
+body.bookshelf #sort:hover { color: var(--accent); }
 
-#count { max-width: 720px; margin: 14px auto 0; padding: 0 20px; color: var(--muted); font-size: 11px; }
+/* the index — display:block resets the global `main` flex-centering rule */
+#shelf { display: block; min-height: 0; max-width: var(--bs-w); margin: 24px auto 96px; padding: 0 24px; }
+.bare { color: var(--muted); font-size: 14px; padding: 40px 4px; border-top: 1px solid var(--line); }
+.showing { color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; margin: 16px 0 0; padding: 0 4px; }
 
-/* the bookcase — display:block resets the global `main` flex-centering rule */
-#shelf { display: block; min-height: 0; max-width: 720px; margin: 8px auto 80px; padding: 0 20px; }
-.bare { color: var(--muted); font-size: 14px; text-align: center; padding: 48px 0; }
-
-.shelf-row { position: relative; }
-/* a quiet shelf ledge under each row — a soft shadow line, not a chunky plank */
-.plank {
-  height: 4px; margin: 6px 2px 30px;
-  border-radius: 1px;
-  background: linear-gradient(#39301f, #251e16);
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.45);
+/* column header row, aligned to the same grid as each entry */
+.listhead, .row {
+  display: grid;
+  grid-template-columns: 1fr 124px 56px 56px 22px;
+  align-items: center; gap: 18px;
+}
+.listhead {
+  padding: 0 4px 10px; border-bottom: 1px solid var(--edge);
+  color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
 }
 
-/* a book: a flat, matte spine — like a cloth-bound book on a shelf, no gloss,
-   no fake binding, no edge. the whole spine carries the category colour. */
-.book {
-  margin: 5px 0;
-  border-radius: 2px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+/* an entry: a quiet table row that expands in place when clicked */
+.entry { border-bottom: 1px solid var(--line); }
+.row {
+  padding: 13px 4px; cursor: pointer;
+  transition: background 0.14s ease;
 }
-.book .spine {
-  display: flex; align-items: center; gap: 11px;
-  min-height: var(--h, 48px);
-  padding: 0 18px;
-  cursor: pointer;
-  color: #ece6da;
-  /* one hairline at the base hints depth without any plastic sheen */
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.2);
-}
-.book:hover { transform: translateX(4px); filter: brightness(1.07); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); }
-.book.open, .book.open:hover { transform: none; filter: none; }
+.row:hover { background: var(--hover); }
+.entry.open > .row { background: var(--active); }
 
-/* a serif title against the mono meta — literary, not techy */
-.b-title {
-  font-family: Georgia, "Iowan Old Style", ui-serif, serif;
-  font-weight: 600; font-size: 15px; letter-spacing: 0.2px;
+.r-name { display: inline-flex; align-items: baseline; gap: 11px; min-width: 0; }
+.marker {
+  width: 8px; height: 8px; border-radius: 2px; flex: none;
+  background: var(--muted); align-self: center;
+}
+.entry.queue .marker { background: transparent; border: 1.5px solid var(--muted); }
+.entry.fav .marker { background: var(--accent); border-color: var(--accent); }
+
+.r-title {
+  font-size: 14.5px; color: var(--fg); letter-spacing: -0.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.b-by {
-  font-family: Georgia, ui-serif, serif; font-style: italic;
-  color: rgba(255, 255, 255, 0.58); font-size: 12.5px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 2;
+.row:hover .r-title, .entry.open .r-title { color: var(--strong); }
+.r-by {
+  color: var(--muted); font-size: 12px; flex-shrink: 2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.b-meta { margin-left: auto; display: flex; align-items: center; gap: 13px; font-size: 11px; white-space: nowrap; color: rgba(255, 255, 255, 0.75); }
-.b-meta .b-cat { opacity: 0.6; text-transform: lowercase; letter-spacing: 0.4px; }
-.b-meta .b-fav { color: #f0d27a; }
+.r-by::before { content: "· "; }
 
-/* spine colour by category — flat, desaturated matte book-cloth tones */
-.book.cat-fiction    .spine { background: #5a4146; }
-.book.cat-nonfiction .spine { background: #45543f; }
-.book.cat-essay      .spine { background: #41495c; }
-.book.cat-advice     .spine { background: #5d5135; }
-.book.cat-tech       .spine { background: #4b4458; }
-.book.cat-other      .spine { background: #474440; }
+/* a plain, uniform category box — no per-category colour, no edge accent */
+.r-cat {
+  justify-self: start;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); border: 1px solid var(--edge);
+  border-radius: 4px; padding: 3px 8px; white-space: nowrap;
+}
+.r-love { font-size: 12px; color: var(--love); white-space: nowrap; }
+.r-time { font-size: 12px; white-space: nowrap; }
+.muted { color: var(--muted); }
+.r-x {
+  text-align: center; color: var(--muted); font-size: 15px; line-height: 1;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+.row:hover .r-x { color: var(--fg); }
+.entry.open .r-x { transform: rotate(45deg); color: var(--accent); }  /* + becomes × */
 
-/* the opened book: notes + metadata, revealed in place */
+/* the opened entry: notes + metadata, revealed in place */
 .panel {
-  background: #16140f;
-  border: 1px solid #2c2620; border-top: none;
-  padding: 14px 16px;
+  background: var(--surface);
+  padding: 16px 18px 18px;
   font-size: 13px;
   animation: book-open 0.16s ease;
 }
 @keyframes book-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.panel-top { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; color: var(--muted); font-size: 12px; }
-.panel-top .k { color: #cbb98f; }
-.panel-top .open { color: #8fc7ff; text-decoration: none; border-bottom: 1px dashed; }
-.panel-top .love { color: #e88; }
-.panel-top .fav { color: #ffd969; }
-.panel .tags { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-.panel .tag { font-size: 11px; color: var(--muted); background: #211d18; border: 1px solid #322c25; border-radius: 999px; padding: 2px 9px; }
-.writeup { margin-top: 12px; white-space: pre-wrap; line-height: 1.55; color: #d8d2c7; }
+.panel-top { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; color: var(--muted); font-size: 12px; }
+.panel-top .k { color: var(--fg); text-transform: lowercase; }
+.panel-top .open { color: var(--link); text-decoration: none; border-bottom: 1px dashed; }
+.panel-top .love { color: var(--love); }
+.panel-top .fav { color: var(--accent); }
+.panel .tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.panel .tag { font-size: 11px; color: var(--muted); background: var(--hover); border: 1px solid var(--edge); border-radius: 999px; padding: 2px 9px; }
+.writeup { margin-top: 14px; white-space: pre-wrap; line-height: 1.6; color: var(--fg); }
 .writeup.empty { color: var(--muted); font-style: italic; }
-.writeup a { color: #8fc7ff; }
-.panel-actions { margin-top: 14px; display: flex; gap: 8px; }
+.writeup a { color: var(--link); }
+.panel-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
 .panel-actions button, .form-actions button {
   font: inherit; font-size: 12px; cursor: pointer;
-  background: #211d18; color: var(--fg); border: 1px solid #3a332b; border-radius: 4px; padding: 5px 12px;
+  background: var(--hover); color: var(--fg); border: 1px solid var(--edge); border-radius: 5px; padding: 5px 12px;
+  transition: color 0.14s ease, border-color 0.14s ease;
 }
-.panel-actions button:hover, .form-actions button:hover { border-color: #e9c27a; color: #e9c27a; }
-.panel-actions button.armed { border-color: #e07a6b; color: #e07a6b; }
-.form-actions button.primary { background: #e9c27a; color: #1b1b1b; border-color: #e9c27a; font-weight: 600; }
+.panel-actions button:hover, .form-actions button:hover { border-color: var(--accent); color: var(--accent); }
+.panel-actions button.armed { border-color: var(--danger); color: var(--danger); }
+.panel-actions button.mark { border-color: var(--positive); color: var(--positive); }
+.panel-actions button.mark:hover { border-color: var(--positive); color: var(--positive); background: var(--hover); }
+.form-actions button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 
-/* inline add/edit form (also used in the .addslot at the top of the shelf) */
+/* inline add/edit form (also used in the .addslot at the top of the index) */
 .addslot { margin: 4px 0 30px; }
 .bookform {
-  background: #15130f; border: 1px solid #2c2620; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: 10px;
   padding: 20px 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px;
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 14px 32px var(--shadow);
   animation: form-open 0.2s ease; transform-origin: top center;
 }
 @keyframes form-open { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
@@ -639,20 +732,23 @@ body.bookshelf #sort:hover { color: var(--fg); }
 .bookform .frow.full, .bookform .form-actions { grid-column: 1 / -1; }
 .bookform .frow.check { flex-direction: row; align-items: center; }
 .bookform label { color: var(--muted); font-size: 12px; }
+.bookform label .hint { color: var(--faint); font-size: 11px; }
 .bookform input, .bookform select, .bookform textarea {
-  font: inherit; font-size: 13px; background: #0f0d0a; color: var(--fg);
-  border: 1px solid #322c25; border-radius: 4px; padding: 7px 9px; width: 100%;
+  font: inherit; font-size: 13px; background: var(--field); color: var(--fg);
+  border: 1px solid var(--edge); border-radius: 4px; padding: 7px 9px; width: 100%;
 }
 .bookform .frow.check label { display: flex; align-items: center; gap: 8px; color: var(--fg); }
 .bookform .frow.check input { width: auto; }
-.bookform input:focus, .bookform select:focus, .bookform textarea:focus { outline: none; border-color: #e9c27a; }
+.bookform input:focus, .bookform select:focus, .bookform textarea:focus { outline: none; border-color: var(--accent); }
 .bookform textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
 .form-actions { display: flex; gap: 8px; margin-top: 4px; }
 
 @media (max-width: 640px) {
   body.bookshelf #bar { gap: 12px; font-size: 14px; }
-  #masthead, #controls, #count, #shelf { padding: 0 14px; }
+  #masthead, #controls, #shelf { padding: 0 16px; }
+  #masthead { margin-top: 32px; }
   .bookform { grid-template-columns: 1fr; }
-  .book:hover { transform: none; }
-  .b-by { display: none; }
+  /* drop the category + time columns; they still show in the open panel */
+  .listhead, .row { grid-template-columns: 1fr auto 22px; gap: 12px; }
+  .lh-cat, .lh-time, .r-cat, .r-time { display: none; }
 }
