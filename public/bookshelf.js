@@ -102,7 +102,7 @@ function formHtml(b) {
     <div class="frow"><label>tags</label><input name="tags" value="${esc(b.tags)}" maxlength="300" placeholder="comma, separated" /></div>
     <div class="frow check"><label><input name="favorite" type="checkbox"${b.favorite ? " checked" : ""} /> favorite ★</label></div>
     <div class="frow check"><label><input name="queue" type="checkbox"${isQueue(b) ? " checked" : ""} /> on my list — haven't read yet</label></div>
-    <div class="frow full"><label>writeup <span class="hint">(or, for the queue: why you want to read it)</span></label><textarea name="writeup" maxlength="20000" placeholder="learnings, snippets, comments…">${esc(b.writeup)}</textarea></div>
+    <div class="frow full"><label>writeup <span class="hint"></span></label><textarea name="writeup" maxlength="20000" placeholder="learnings, snippets, comments…">${esc(b.writeup)}</textarea></div>
     <div class="form-actions">
       <button type="submit" class="primary">save</button>
       <button type="button" data-action="cancel">cancel</button>
