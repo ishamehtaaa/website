@@ -118,7 +118,7 @@ function readPanel(b) {
   if (!queued) bits.push(`<span class="love">♥ ${b.love}</span>`);
   if (b.favorite) bits.push(`<span class="fav">★ favorite</span>`);
   if (b.reading_time) bits.push(`<span class="rt">${b.reading_time}m read</span>`);
-  const placeholder = queued ? "no note yet — just on the list." : "no notes yet";
+  const placeholder = "no notes yet";
   let actions = "";
   if (authed) {
     actions = `<div class="panel-actions">
@@ -332,7 +332,7 @@ tabsEl.addEventListener("click", e => {
 sortEl.addEventListener("change", () => { sortKey = sortEl.value; render(); });
 
 async function logout() {
-  await api("/api/logout", { method: "POST" }).catch(() => {});
+  await api("/api/logout", { method: "POST" }).catch(() => { });
   location.href = "/bookshelf";
 }
 
@@ -347,7 +347,7 @@ async function logout() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: key }),
-    }).catch(() => {});
+    }).catch(() => { });
     params.delete("key");
     const qs = params.toString();
     history.replaceState(null, "", location.pathname + (qs ? `?${qs}` : ""));
