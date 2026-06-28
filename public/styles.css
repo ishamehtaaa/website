@@ -1,37 +1,49 @@
 /* ============================================================
-   shared base
-   Breakpoint convention: mobile is max-width: 640px
+   isha's house — stylesheet
 
-   THEME TOKENS — the single source of truth for colour. Every page reads
-   from these; the one prefers-color-scheme block below is the only place
-   light mode is defined. Add a colour here, not a literal in a rule.
+   CONVENTIONS (read before adding styles):
 
-   What themes vs. what doesn't: the *chrome* (page, toolbar, modals, text,
-   borders, the whole bookshelf) flips with the OS theme. The scrapbook's
-   physical *materials* — sticky notes, the guestbook notepad, polaroid
-   photo frames, link cards — keep their paper/material palette in both
-   themes on purpose (a scrapbook has cream paper in any lighting), so those
-   few colours stay literal below and are intentionally not tokenised.
+   1. MOBILE-FIRST. Base rules (outside any media query) describe the phone
+      layout. Desktop deltas live in a nested `@media (min-width: 641px)` block
+      *inside the same rule*, so a component and its responsive tweak sit
+      together. There is ONE breakpoint: 640px / 641px (the `sm` line, matching
+      Tailwind). scrapbook.js keys off the same 640px line for its drag coords —
+      keep them in sync if it ever changes.
+
+   2. USE TOKENS, NOT LITERALS. Colour, spacing, type, and radius all come from
+      the :root scales below. Add a token, don't sprinkle a magic number. The
+      one exception is the scrapbook's physical *materials* (sticky notes,
+      polaroid frames, link cards, guestbook notepad): they keep their literal
+      paper palette in both themes on purpose, and are intentionally not
+      tokenised. Everything else — the chrome — flips with the OS theme via the
+      single prefers-color-scheme block.
+
+   3. These scales are shaped to mirror Tailwind v4's @theme so a later move to
+      Tailwind is a near-mechanical translation (--space-4 → p-4, --text-sm →
+      text-sm, the colour vars drop straight into @theme).
+
+   Section order: Tokens → Base → Home → Scrapbook → Bookshelf
    ============================================================ */
+
 :root {
-  /* surfaces */
+  /* ---- colour: surfaces ---- */
   --bg:       #0f0f0f;  /* page */
   --surface:  #181818;  /* raised chrome: toolbar buttons, modals, panels, forms */
   --field:    #0f0f0f;  /* input backgrounds */
   --hover:    #161616;  /* subtle hover wash */
   --active:   #1c1813;  /* selected / open / active wash (faintly warm) */
 
-  /* text */
+  /* ---- colour: text ---- */
   --fg:       #e6e6e6;  /* primary */
   --strong:   #ffffff;  /* emphasised / hovered */
   --muted:    #8a8a8a;  /* secondary, labels */
   --faint:    #6a6a6a;  /* hints */
 
-  /* lines */
+  /* ---- colour: lines ---- */
   --line:     #1f1f1f;  /* hairline dividers */
   --edge:     #333333;  /* borders, boxes */
 
-  /* accents */
+  /* ---- colour: accents ---- */
   --accent:        #e9c27a;  /* gold highlight */
   --accent-hover:  #ffd574;  /* brighter gold for hover on fills */
   --accent-ink:    #1a1a1a;  /* text/icon sitting on an accent fill */
@@ -40,11 +52,40 @@
   --danger:        #e07a6b;  /* armed delete */
   --positive:      #7faf5f;  /* mark-as-read */
 
-  /* effects */
+  /* ---- colour: effects ---- */
   --shadow:   rgba(0, 0, 0, 0.45);
   --overlay:  rgba(0, 0, 0, 0.55);
 
-  --gap: 24px;
+  /* ---- spacing scale (mirrors Tailwind: 1=4px) ---- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+
+  /* ---- type scale (this site runs compact/mono; sizes are the site's own,
+     not Tailwind's px values — the Tailwind migration remaps the names) ---- */
+  --text-2xs:  10px;
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 13px;
+  --text-md:   14px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  24px;
+  --text-display: clamp(40px, 9vw, 64px);  /* fluid masthead */
+
+  /* mobile chrome bumps body type up a touch for finger-readability; this is
+     the in-between size used by those mobile base rules */
+  --text-touch: 15px;
+
+  /* ---- radius ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
 }
 
 @media (prefers-color-scheme: light) {
@@ -76,11 +117,13 @@
   }
 }
 
+/* ============================================================
+   base / reset
+   ============================================================ */
 * { box-sizing: border-box; }
 
 /* the [hidden] attribute must win over id rules that set `display` (e.g. #bar,
-   #deadend are display:flex); without !important those override it and the
-   element never actually hides. */
+   #deadend are display:flex); without !important those override it. */
 [hidden] { display: none !important; }
 
 body {
@@ -101,57 +144,104 @@ main {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  gap: var(--gap);
-  padding: var(--gap);
+  gap: 18px;
+  padding: var(--space-5);
+  @media (min-width: 641px) {
+    gap: var(--space-6);
+    padding: var(--space-6);
+  }
 }
 
-h1 { font-weight: 500; font-size: 18px; margin: 0; }
+h1 {
+  font-weight: 500;
+  font-size: var(--text-2xl);
+  margin: 0;
+  @media (min-width: 641px) { font-size: var(--text-xl); }
+}
 
-#count { color: var(--muted); font-size: 14px; }
+#count {
+  color: var(--muted);
+  font-size: var(--text-lg);
+  @media (min-width: 641px) { font-size: var(--text-md); }
+}
 
-main a { color: var(--fg); text-decoration: none; border-bottom: 1px dashed var(--muted); font-size: 14px; }
+main a {
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--muted);
+  font-size: var(--text-lg);
+  @media (min-width: 641px) { font-size: var(--text-md); }
+}
 main a:hover { border-bottom-color: var(--fg); }
 
-/* ---- corner nav ---- */
+/* ---- corner nav (fixed in both layouts, just repositioned) ---- */
 #nav {
   position: fixed;
-  top: 24px;
-  left: 24px;
-  font-size: 13px;
+  top: 14px;
+  left: 14px;
+  font-size: var(--text-lg);
+  @media (min-width: 641px) {
+    top: var(--space-6);
+    left: var(--space-6);
+    font-size: var(--text-base);
+  }
 }
-#nav a { display: block; margin-bottom: 4px; color: var(--muted); text-decoration: none; border-bottom: 1px dashed transparent; }
+#nav a {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px dashed transparent;
+}
 #nav a:hover { color: var(--fg); border-bottom-color: var(--muted); }
 
-/* ---- guestbook notepad ---- */
+/* ---- guestbook notepad (material colours stay literal) ----
+   mobile: flows inline under the page. desktop: pinned to the corner, rotated. */
 #guestbook {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 220px;
+  position: static;
+  width: auto;
+  margin: var(--space-4);
   background: #fdf8e4;
   color: #2b2b2b;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-  font-size: 12px;
-  transform: rotate(1.5deg);
+  font-size: var(--text-touch);
+  transform: none;
   overflow: hidden;
+  @media (min-width: 641px) {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-6);
+    width: 220px;
+    margin: 0;
+    font-size: var(--text-sm);
+    transform: rotate(1.5deg);
+  }
 }
 
 #guestbook h2 {
   margin: 0;
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: var(--space-3) 14px;
+  font-size: var(--text-touch);
   font-weight: 600;
   letter-spacing: 0.5px;
   background: #f4c95d;
   color: #3a2f0b;
+  @media (min-width: 641px) {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+  }
 }
 
 .gb-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 14px;
+  @media (min-width: 641px) {
+    gap: 6px;
+    padding: 10px var(--space-3);
+  }
 }
 
 .gb-form input,
@@ -161,14 +251,17 @@ main a:hover { border-bottom-color: var(--fg); }
   border-bottom: 1px solid #d8cfa6;
   background: transparent;
   color: #2b2b2b;
-  padding: 4px 2px;
+  padding: var(--space-2) var(--space-1);
   resize: none;
+  @media (min-width: 641px) { padding: var(--space-1) 2px; }
 }
-
 .gb-form input:focus,
 .gb-form textarea:focus { outline: none; border-bottom-color: #f4c95d; }
 
-.gb-form textarea { min-height: 40px; }
+.gb-form textarea {
+  min-height: 56px;
+  @media (min-width: 641px) { min-height: 40px; }
+}
 
 .gb-form button {
   align-self: flex-end;
@@ -176,59 +269,50 @@ main a:hover { border-bottom-color: var(--fg); }
   border: none;
   background: #3a2f0b;
   color: #fdf8e4;
-  padding: 3px 12px;
+  padding: var(--space-2) 18px;
   border-radius: 3px;
   cursor: pointer;
+  @media (min-width: 641px) { padding: 3px var(--space-3); }
 }
 
-#gb-status { font-size: 10px; color: #a08a3a; min-height: 12px; }
+#gb-status {
+  font-size: var(--text-base);
+  color: #a08a3a;
+  min-height: 12px;
+  @media (min-width: 641px) { font-size: var(--text-2xs); }
+}
 
 #gb-entries {
   list-style: none;
   margin: 0;
-  padding: 4px 12px 12px;
-  max-height: 40vh;
+  padding: 6px 14px 14px;
+  max-height: 35vh;
   overflow-y: auto;
+  @media (min-width: 641px) {
+    padding: var(--space-1) var(--space-3) var(--space-3);
+    max-height: 40vh;
+  }
 }
 
 #gb-entries li {
   padding: 6px 0;
   border-top: 1px dashed #d8cfa6;
 }
-
-#gb-entries strong { font-size: 11px; }
-#gb-entries span { color: #a08a3a; font-size: 10px; margin-left: 4px; }
-#gb-entries p { margin: 2px 0 0; line-height: 1.4; }
-
-@media (max-width: 640px) {
-  main { padding: 20px; gap: 18px; }
-
-  /* scale type up so it's readable on a phone */
-  h1 { font-size: 24px; }
-  #count { font-size: 16px; }
-  main a { font-size: 16px; }
-
-  #nav { top: 14px; left: 14px; font-size: 16px; }
-
-  #guestbook {
-    position: static;
-    width: auto;
-    margin: 16px;
-    transform: none;
-    font-size: 15px;
-  }
-  #guestbook h2 { font-size: 15px; padding: 12px 14px; }
-  .gb-form { padding: 14px; gap: 10px; }
-  .gb-form input, .gb-form textarea { padding: 8px 4px; }
-  .gb-form textarea { min-height: 56px; }
-  .gb-form button { padding: 8px 18px; }
-  #gb-status { font-size: 13px; }
-  #gb-entries strong { font-size: 14px; }
-  #gb-entries span { font-size: 13px; }
-  #gb-entries p { font-size: 14px; }
-
-  /* keep the notepad from eating the whole screen once it's inline */
-  #gb-entries { max-height: 35vh; padding: 6px 14px 14px; }
+#gb-entries strong {
+  font-size: var(--text-md);
+  @media (min-width: 641px) { font-size: var(--text-xs); }
+}
+#gb-entries span {
+  color: #a08a3a;
+  font-size: var(--text-base);
+  margin-left: var(--space-1);
+  @media (min-width: 641px) { font-size: var(--text-2xs); }
+}
+#gb-entries p {
+  margin: 2px 0 0;
+  line-height: 1.4;
+  font-size: var(--text-md);
+  @media (min-width: 641px) { font-size: var(--text-sm); }
 }
 
 /* ============================================================
@@ -236,56 +320,79 @@ main a:hover { border-bottom-color: var(--fg); }
    ============================================================ */
 html, body.scrapbook { height: 100%; }
 /* board can grow past the viewport (items live at fixed coords); let the page
-   scroll/pan so nothing is ever clipped out of reach. No scrollbars appear
-   while everything fits. */
+   scroll/pan so nothing is ever clipped out of reach. */
 body.scrapbook { overflow: auto; }
-/* stop the page's pull-to-refresh / rubber-band from hijacking a drag that
-   starts near the top edge on touch */
+/* stop pull-to-refresh / rubber-band from hijacking a drag near the top edge */
 body.scrapbook { overscroll-behavior: none; }
 
 /* ---- toolbar ---- */
 #bar {
   position: fixed;
-  top: 16px;
-  left: 16px;
+  top: var(--space-4);
+  left: var(--space-4);
   z-index: 10000;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  font-size: var(--text-lg);
+  @media (min-width: 641px) {
+    flex-wrap: nowrap;
+    max-width: none;
+    gap: var(--space-2);
+    font-size: var(--text-base);
+  }
 }
 
-#bar a { color: var(--muted); text-decoration: none; margin-right: 6px; }
+#bar a {
+  color: var(--muted);
+  text-decoration: none;
+  margin-right: 6px;
+  font-size: var(--text-lg);
+  @media (min-width: 641px) { font-size: var(--text-base); }
+}
 #bar a:hover { color: var(--fg); }
 
 #bar button {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-touch);
   border: 1px solid var(--edge);
   background: var(--surface);
   color: var(--fg);
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: var(--space-2) 14px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  @media (min-width: 641px) {
+    font-size: var(--text-sm);
+    padding: var(--space-1) 10px;
+  }
 }
 #bar button:hover { border-color: var(--accent); color: var(--accent); }
 
-#hint { color: var(--muted); font-size: 11px; margin-left: 4px; }
+/* hint copy is desktop-only (no room on a phone toolbar) */
+#hint {
+  display: none;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  margin-left: var(--space-1);
+  @media (min-width: 641px) { display: inline; }
+}
 
 /* ---- board switcher ---- */
-#boards { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+#boards { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
 #boards a {
   color: var(--muted);
   text-decoration: none;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
   margin: 0;
 }
 #boards a:hover { color: var(--fg); }
 #boards a.active { color: var(--accent); border-color: var(--edge); background: var(--active); }
 
-#owner-controls, #add-controls, #auth-control { display: inline-flex; align-items: center; gap: 8px; }
+#owner-controls, #add-controls, #auth-control { display: inline-flex; align-items: center; gap: var(--space-2); }
 #owner-controls[hidden], #add-controls[hidden] { display: none; }
 
 /* ---- dead end (no access / no such board) — looks like a plain 404 ---- */
@@ -295,15 +402,15 @@ body.scrapbook { overscroll-behavior: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--space-6);
 }
 .deadend-card { text-align: center; }
-.deadend-card p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.deadend-card p { margin: 0 0 10px; color: var(--muted); font-size: var(--text-md); }
 .deadend-card a {
   color: var(--muted);
   text-decoration: none;
   border-bottom: 1px dashed var(--muted);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 .deadend-card a:hover { color: var(--fg); border-bottom-color: var(--fg); }
 
@@ -311,17 +418,17 @@ body.scrapbook { overscroll-behavior: none; }
 .modal select {
   width: 100%;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--fg);
   background: var(--field);
   border: 1px solid var(--edge);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 9px 10px;
 }
 .modal select:focus { outline: none; border-color: var(--accent); }
 
-/* ---- board ---- */
-/* at least the viewport, but grows to encompass every item (sized in
+/* ---- board ----
+   at least the viewport, but grows to encompass every item (sized in
    scrapbook.js) so off-screen items stay reachable by scrolling at any width */
 #board {
   position: relative;
@@ -335,16 +442,16 @@ body.scrapbook { overscroll-behavior: none; }
   cursor: grab;
   user-select: none;
   touch-action: none;
-  max-width: 280px;
   /* scale grows toward bottom-right so items never overflow into negative
      (unreachable) space; keeps top-left as the stable drag anchor */
   transform-origin: top left;
+  max-width: 86vw;
+  @media (min-width: 641px) { max-width: 280px; }
 }
 .item.dragging { cursor: grabbing; }
 
 /* resize grip — drag away from the item's centre to grow, toward it to shrink.
-   Hidden until hover on pointer devices; always shown on touch (where pinch
-   also works). */
+   Hidden until hover on pointer devices; always shown on touch. */
 .item .handle {
   position: absolute;
   right: -7px;
@@ -362,8 +469,7 @@ body.scrapbook { overscroll-behavior: none; }
 }
 .item:hover .handle { opacity: 1; }
 @media (hover: none) {
-  /* always visible on touch, and a bigger grip with a padded ~44px hit area so
-     it's actually tappable with a finger */
+  /* always visible on touch, with a padded ~44px hit area so it's tappable */
   .item .handle {
     opacity: 1;
     width: 22px;
@@ -378,38 +484,44 @@ body.scrapbook { overscroll-behavior: none; }
   }
 }
 
-/* note */
+/* note (material colours stay literal) */
 .item.note {
   background: #fdf8e4;
   color: #2b2b2b;
-  padding: 12px 14px;
-  width: 200px;
+  padding: var(--space-3) 14px;
   border-radius: 3px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-  font-size: 13px;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+  width: min(72vw, 260px);
+  font-size: var(--text-touch);
+  @media (min-width: 641px) {
+    width: 200px;
+    font-size: var(--text-base);
+  }
 }
 
 /* photo — polaroid-ish frame */
 .item.image {
   background: #fafafa;
-  padding: 8px 8px 10px;
+  padding: var(--space-2) var(--space-2) 10px;
   border-radius: 2px;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
 }
 .item.image img {
   display: block;
-  width: 220px;
   height: auto;
   border-radius: 1px;
+  width: min(80vw, 280px);
+  @media (min-width: 641px) { width: 220px; }
 }
 .item.image .cap {
   color: #444;
-  font-size: 11px;
   text-align: center;
   padding-top: 6px;
+  font-size: var(--text-base);
+  @media (min-width: 641px) { font-size: var(--text-xs); }
 }
 
 /* link card */
@@ -417,25 +529,37 @@ body.scrapbook { overscroll-behavior: none; }
   background: #16202b;
   border: 1px solid #2a3a4a;
   color: #cfe3f5;
-  padding: 10px 12px;
-  width: 180px;
+  padding: 10px var(--space-3);
   border-radius: 5px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-  font-size: 12px;
+  width: min(68vw, 240px);
+  font-size: var(--text-md);
+  @media (min-width: 641px) {
+    width: 180px;
+    font-size: var(--text-sm);
+  }
 }
 .item.link a { color: #8fc7ff; text-decoration: none; word-break: break-all; }
 .item.link a:hover { text-decoration: underline; }
-.item.link .cap { color: #cfe3f5; margin-bottom: 4px; font-weight: 600; }
+.item.link .cap {
+  color: #cfe3f5;
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+  font-size: var(--text-md);
+  @media (min-width: 641px) { font-size: var(--text-sm); }
+}
 
+/* empty message — anchored to the viewport, not the (taller) board */
 #empty {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   color: var(--muted);
-  font-size: 13px;
   text-align: center;
   pointer-events: none;
+  font-size: var(--text-touch);
+  @media (min-width: 641px) { font-size: var(--text-base); }
 }
 
 /* ---- modal ---- */
@@ -456,10 +580,11 @@ body.scrapbook { overscroll-behavior: none; }
   width: min(380px, calc(100vw - 32px));
   background: var(--surface);
   border: 1px solid var(--edge);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   box-shadow: 0 20px 60px var(--shadow);
-  padding: 18px;
+  padding: 22px;
   animation: pop 0.12s ease-out;
+  @media (min-width: 641px) { padding: 18px; }
 }
 @keyframes pop {
   from { opacity: 0; transform: translateY(6px) scale(0.98); }
@@ -468,57 +593,61 @@ body.scrapbook { overscroll-behavior: none; }
 
 .modal h2 {
   margin: 0 0 14px;
-  font-size: 13px;
   font-weight: 600;
   color: var(--fg);
   letter-spacing: 0.02em;
+  font-size: var(--text-lg);
+  @media (min-width: 641px) { font-size: var(--text-base); }
 }
 
 .modal label {
   display: block;
   color: var(--muted);
-  font-size: 11px;
   margin: 0 0 5px;
+  font-size: var(--text-md);
+  @media (min-width: 641px) { font-size: var(--text-xs); }
 }
-.modal .field + .field { margin-top: 12px; }
+.modal .field + .field { margin-top: var(--space-3); }
 
 .modal input,
 .modal textarea {
   width: 100%;
   font: inherit;
-  font-size: 13px;
   color: var(--fg);
   background: var(--field);
   border: 1px solid var(--edge);
-  border-radius: 6px;
-  padding: 9px 10px;
+  border-radius: var(--radius-md);
   resize: none;
+  font-size: var(--text-lg);
+  padding: 11px var(--space-3);
+  @media (min-width: 641px) {
+    font-size: var(--text-base);
+    padding: 9px 10px;
+  }
 }
 .modal input:focus,
-.modal textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-}
+.modal textarea:focus { outline: none; border-color: var(--accent); }
 .modal textarea { min-height: 88px; line-height: 1.45; }
 
 .modal .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
   margin-top: 18px;
 }
 .modal .actions button {
   font: inherit;
-  font-size: 12px;
-  padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   border: 1px solid var(--edge);
+  font-size: var(--text-touch);
+  padding: 9px 18px;
+  @media (min-width: 641px) {
+    font-size: var(--text-sm);
+    padding: 6px 14px;
+  }
 }
-.modal .btn-cancel {
-  background: transparent;
-  color: var(--muted);
-}
+.modal .btn-cancel { background: transparent; color: var(--muted); }
 .modal .btn-cancel:hover { color: var(--fg); border-color: var(--muted); }
 .modal .btn-ok {
   background: var(--accent);
@@ -528,38 +657,11 @@ body.scrapbook { overscroll-behavior: none; }
 }
 .modal .btn-ok:hover { background: var(--accent-hover); }
 
-@media (max-width: 640px) {
-  #bar { flex-wrap: wrap; max-width: calc(100vw - 32px); gap: 10px; font-size: 16px; }
-  #bar a { font-size: 16px; }
-  #bar button { font-size: 15px; padding: 8px 14px; }
-  #hint { display: none; }
-
-  /* scale items up so they read on a phone */
-  .item { max-width: 86vw; }
-  .item.note { width: min(72vw, 260px); font-size: 15px; }
-  .item.link { width: min(68vw, 240px); font-size: 14px; }
-  .item.link .cap { font-size: 14px; }
-  .item.image img { width: min(80vw, 280px); }
-  .item.image .cap { font-size: 13px; }
-
-  /* bigger modal controls + tap targets */
-  .modal { padding: 22px; }
-  .modal h2 { font-size: 16px; }
-  .modal label { font-size: 14px; }
-  .modal input, .modal textarea { font-size: 16px; padding: 11px 12px; }
-  .modal .actions button { font-size: 15px; padding: 9px 18px; }
-
-  /* anchor the empty message to the viewport, not the (taller) board */
-  #empty { position: fixed; font-size: 15px; }
-}
-
 /* ============================================================
    bookshelf (body.bookshelf)
-   an editorial reading log: a clean, monospace, Stripe-style index
-   of links + writeups, with an "on my list" reading queue.
-
-   it reads entirely from the shared theme tokens at the top of this file,
-   so light mode needs no bookshelf-specific override.
+   an editorial reading log: a clean, monospace, Stripe-style index of links +
+   writeups, with an "on my list" reading queue. reads entirely from the shared
+   tokens above, so light mode needs no bookshelf-specific override.
    ============================================================ */
 body.bookshelf {
   --bs-w: 880px;   /* content column width (layout only, not a colour) */
@@ -567,87 +669,124 @@ body.bookshelf {
 }
 
 /* override the scrapbook's fixed corner #bar: a quiet top strip aligned with the
-   content, with boxed mono action buttons on the right. */
+   content, boxed mono action buttons on the right. */
 body.bookshelf #bar {
   position: static;
-  width: 100%; max-width: var(--bs-w);
+  width: 100%;
+  max-width: var(--bs-w);
   margin: 0 auto;
-  flex-wrap: wrap; gap: 18px; align-items: center;
-  padding: 22px 24px 0;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 22px var(--space-6) 0;
   background: transparent;
-  font-size: 13px;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+  @media (min-width: 641px) {
+    gap: 18px;
+    font-size: var(--text-base);
+  }
 }
 body.bookshelf #bar a { color: var(--muted); }
 body.bookshelf #bar a:hover { color: var(--fg); }
 body.bookshelf #bar .spacer { flex: 1; }
 body.bookshelf #bar button {
-  font: inherit; font-size: 12px; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); cursor: pointer;
   background: transparent; color: var(--muted);
-  border: 1px solid var(--edge); border-radius: 5px; padding: 5px 12px;
+  border: 1px solid var(--edge); border-radius: 5px; padding: 5px var(--space-3);
   transition: color 0.14s ease, border-color 0.14s ease;
 }
 body.bookshelf #bar button:hover { color: var(--fg); border-color: var(--muted); }
 
 /* masthead — a big, tight headline with a superscript count, à la Stripe */
-#masthead { max-width: var(--bs-w); margin: 46px auto 0; padding: 0 24px; }
+#masthead {
+  max-width: var(--bs-w);
+  margin: var(--space-8) auto 0;
+  padding: 0 var(--space-4);
+  @media (min-width: 641px) {
+    margin-top: 46px;
+    padding: 0 var(--space-6);
+  }
+}
 #masthead h1 {
   font-family: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  font-size: clamp(40px, 9vw, 64px); font-weight: 700;
+  font-size: var(--text-display); font-weight: 700;
   letter-spacing: -0.03em; line-height: 0.95; margin: 0; color: var(--fg);
 }
 #masthead h1 sup {
   font-size: 0.28em; font-weight: 500; vertical-align: super;
   color: var(--muted); letter-spacing: 0; margin-left: 0.25em; top: -0.1em;
 }
-#masthead .sub { color: var(--muted); font-size: 13px; margin: 16px 0 0; }
+#masthead .sub { color: var(--muted); font-size: var(--text-base); margin: var(--space-4) 0 0; }
 
 /* controls: filter tabs on the left, a quiet inline sort on the right */
 #controls {
-  max-width: var(--bs-w); margin: 30px auto 0; padding: 0 24px;
+  max-width: var(--bs-w);
+  margin: 30px auto 0;
+  padding: 0 var(--space-4);
   display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 12px;
+  flex-wrap: wrap; gap: var(--space-3);
+  @media (min-width: 641px) { padding: 0 var(--space-6); }
 }
-#tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+#tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 #tabs .tab {
-  font: inherit; font-size: 12.5px; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); cursor: pointer;
   color: var(--muted); background: transparent;
-  border: 1px solid transparent; border-radius: 6px;
+  border: 1px solid transparent; border-radius: var(--radius-md);
   padding: 5px 10px;
   transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
 }
 #tabs .tab:hover { color: var(--fg); background: var(--hover); }
 #tabs .tab.active { color: var(--fg); background: var(--active); }
-#tabs .tab .cnt { color: var(--faint); font-size: 11px; }
+#tabs .tab .cnt { color: var(--faint); font-size: var(--text-xs); }
 #tabs .tab.active .cnt { color: var(--accent); }
 
 .sort-wrap { display: inline-flex; align-items: center; gap: 7px; }
-.sort-label { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; }
+.sort-label { color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em; }
 body.bookshelf #sort {
-  font: inherit; font-size: 12px; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); cursor: pointer;
   color: var(--fg); background: transparent; border: none; padding: 2px 0;
 }
 body.bookshelf #sort:hover { color: var(--accent); }
 
 /* the index — display:block resets the global `main` flex-centering rule */
-#shelf { display: block; min-height: 0; max-width: var(--bs-w); margin: 24px auto 96px; padding: 0 24px; }
-.bare { color: var(--muted); font-size: 14px; padding: 40px 4px; border-top: 1px solid var(--line); }
-.showing { color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; margin: 16px 0 0; padding: 0 4px; }
+#shelf {
+  display: block; min-height: 0;
+  max-width: var(--bs-w);
+  margin: var(--space-6) auto 96px;
+  padding: 0 var(--space-4);
+  @media (min-width: 641px) { padding: 0 var(--space-6); }
+}
+.bare { color: var(--muted); font-size: var(--text-md); padding: 40px var(--space-1); border-top: 1px solid var(--line); }
+.showing { color: var(--faint); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em; margin: var(--space-4) 0 0; padding: 0 var(--space-1); }
 
-/* column header row, aligned to the same grid as each entry */
+/* column header + each entry share one grid.
+   mobile: just title / category-or-time / toggle. desktop: full 5 columns. */
 .listhead, .row {
   display: grid;
-  grid-template-columns: 1fr 124px 56px 56px 22px;
-  align-items: center; gap: 18px;
+  grid-template-columns: 1fr auto 22px;
+  align-items: center;
+  gap: var(--space-3);
+  @media (min-width: 641px) {
+    grid-template-columns: 1fr 124px 56px 56px 22px;
+    gap: 18px;
+  }
 }
 .listhead {
-  padding: 0 4px 10px; border-bottom: 1px solid var(--edge);
-  color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 0 var(--space-1) 10px; border-bottom: 1px solid var(--edge);
+  color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* category + time columns are hidden on mobile (they still show in the open
+   panel); revealed on desktop where the grid has room for them. */
+.lh-cat, .lh-time, .r-cat, .r-time {
+  display: none;
+  @media (min-width: 641px) { display: revert; }
 }
 
 /* an entry: a quiet table row that expands in place when clicked */
 .entry { border-bottom: 1px solid var(--line); }
 .row {
-  padding: 13px 4px; cursor: pointer;
+  padding: 13px var(--space-1); cursor: pointer;
   transition: background 0.14s ease;
 }
 .row:hover { background: var(--hover); }
@@ -655,35 +794,35 @@ body.bookshelf #sort:hover { color: var(--accent); }
 
 .r-name { display: inline-flex; align-items: baseline; gap: 11px; min-width: 0; }
 .marker {
-  width: 8px; height: 8px; border-radius: 2px; flex: none;
+  width: var(--space-2); height: var(--space-2); border-radius: 2px; flex: none;
   background: var(--muted); align-self: center;
 }
 .entry.queue .marker { background: transparent; border: 1.5px solid var(--muted); }
 .entry.fav .marker { background: var(--accent); border-color: var(--accent); }
 
 .r-title {
-  font-size: 14.5px; color: var(--fg); letter-spacing: -0.01em;
+  font-size: var(--text-md); color: var(--fg); letter-spacing: -0.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .row:hover .r-title, .entry.open .r-title { color: var(--strong); }
 .r-by {
-  color: var(--muted); font-size: 12px; flex-shrink: 2;
+  color: var(--muted); font-size: var(--text-sm); flex-shrink: 2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .r-by::before { content: "· "; }
 
-/* a plain, uniform category box — no per-category colour, no edge accent */
+/* a plain, uniform category box — no per-category colour */
 .r-cat {
   justify-self: start;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--muted); border: 1px solid var(--edge);
-  border-radius: 4px; padding: 3px 8px; white-space: nowrap;
+  border-radius: var(--radius-sm); padding: 3px var(--space-2); white-space: nowrap;
 }
-.r-love { font-size: 12px; color: var(--love); white-space: nowrap; }
-.r-time { font-size: 12px; white-space: nowrap; }
+.r-love { font-size: var(--text-sm); color: var(--love); white-space: nowrap; }
+.r-time { font-size: var(--text-sm); white-space: nowrap; }
 .muted { color: var(--muted); }
 .r-x {
-  text-align: center; color: var(--muted); font-size: 15px; line-height: 1;
+  text-align: center; color: var(--muted); font-size: var(--text-touch); line-height: 1;
   transition: transform 0.18s ease, color 0.18s ease;
 }
 .row:hover .r-x { color: var(--fg); }
@@ -692,25 +831,25 @@ body.bookshelf #sort:hover { color: var(--accent); }
 /* the opened entry: notes + metadata, revealed in place */
 .panel {
   background: var(--surface);
-  padding: 16px 18px 18px;
-  font-size: 13px;
+  padding: var(--space-4) 18px 18px;
+  font-size: var(--text-base);
   animation: book-open 0.16s ease;
 }
 @keyframes book-open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.panel-top { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; color: var(--muted); font-size: 12px; }
+.panel-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); color: var(--muted); font-size: var(--text-sm); }
 .panel-top .k { color: var(--fg); text-transform: lowercase; }
 .panel-top .open { color: var(--link); text-decoration: none; border-bottom: 1px dashed; }
 .panel-top .love { color: var(--love); }
 .panel-top .fav { color: var(--accent); }
-.panel .tags { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
-.panel .tag { font-size: 11px; color: var(--muted); background: var(--hover); border: 1px solid var(--edge); border-radius: 999px; padding: 2px 9px; }
+.panel .tags { margin-top: var(--space-3); display: flex; flex-wrap: wrap; gap: 6px; }
+.panel .tag { font-size: var(--text-xs); color: var(--muted); background: var(--hover); border: 1px solid var(--edge); border-radius: 999px; padding: 2px 9px; }
 .writeup { margin-top: 14px; white-space: pre-wrap; line-height: 1.6; color: var(--fg); }
 .writeup.empty { color: var(--muted); font-style: italic; }
 .writeup a { color: var(--link); }
-.panel-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+.panel-actions { margin-top: var(--space-4); display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .panel-actions button, .form-actions button {
-  font: inherit; font-size: 12px; cursor: pointer;
-  background: var(--hover); color: var(--fg); border: 1px solid var(--edge); border-radius: 5px; padding: 5px 12px;
+  font: inherit; font-size: var(--text-sm); cursor: pointer;
+  background: var(--hover); color: var(--fg); border: 1px solid var(--edge); border-radius: 5px; padding: 5px var(--space-3);
   transition: color 0.14s ease, border-color 0.14s ease;
 }
 .panel-actions button:hover, .form-actions button:hover { border-color: var(--accent); color: var(--accent); }
@@ -719,36 +858,29 @@ body.bookshelf #sort:hover { color: var(--accent); }
 .panel-actions button.mark:hover { border-color: var(--positive); color: var(--positive); background: var(--hover); }
 .form-actions button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 
-/* inline add/edit form (also used in the .addslot at the top of the index) */
-.addslot { margin: 4px 0 30px; }
+/* inline add/edit form (also used in the .addslot at the top of the index).
+   mobile: single column. desktop: two columns. */
+.addslot { margin: var(--space-1) 0 30px; }
 .bookform {
-  background: var(--surface); border: 1px solid var(--edge); border-radius: 10px;
-  padding: 20px 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px;
+  background: var(--surface); border: 1px solid var(--edge); border-radius: var(--radius-lg);
+  padding: var(--space-5) 22px; display: grid; gap: 14px var(--space-5);
   box-shadow: 0 14px 32px var(--shadow);
   animation: form-open 0.2s ease; transform-origin: top center;
+  grid-template-columns: 1fr;
+  @media (min-width: 641px) { grid-template-columns: 1fr 1fr; }
 }
 @keyframes form-open { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
-.bookform .frow { display: flex; flex-direction: column; gap: 4px; }
+.bookform .frow { display: flex; flex-direction: column; gap: var(--space-1); }
 .bookform .frow.full, .bookform .form-actions { grid-column: 1 / -1; }
 .bookform .frow.check { flex-direction: row; align-items: center; }
-.bookform label { color: var(--muted); font-size: 12px; }
-.bookform label .hint { color: var(--faint); font-size: 11px; }
+.bookform label { color: var(--muted); font-size: var(--text-sm); }
+.bookform label .hint { color: var(--faint); font-size: var(--text-xs); }
 .bookform input, .bookform select, .bookform textarea {
-  font: inherit; font-size: 13px; background: var(--field); color: var(--fg);
-  border: 1px solid var(--edge); border-radius: 4px; padding: 7px 9px; width: 100%;
+  font: inherit; font-size: var(--text-base); background: var(--field); color: var(--fg);
+  border: 1px solid var(--edge); border-radius: var(--radius-sm); padding: 7px 9px; width: 100%;
 }
-.bookform .frow.check label { display: flex; align-items: center; gap: 8px; color: var(--fg); }
+.bookform .frow.check label { display: flex; align-items: center; gap: var(--space-2); color: var(--fg); }
 .bookform .frow.check input { width: auto; }
 .bookform input:focus, .bookform select:focus, .bookform textarea:focus { outline: none; border-color: var(--accent); }
 .bookform textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
-.form-actions { display: flex; gap: 8px; margin-top: 4px; }
-
-@media (max-width: 640px) {
-  body.bookshelf #bar { gap: 12px; font-size: 14px; }
-  #masthead, #controls, #shelf { padding: 0 16px; }
-  #masthead { margin-top: 32px; }
-  .bookform { grid-template-columns: 1fr; }
-  /* drop the category + time columns; they still show in the open panel */
-  .listhead, .row { grid-template-columns: 1fr auto 22px; gap: 12px; }
-  .lh-cat, .lh-time, .r-cat, .r-time { display: none; }
-}
+.form-actions { display: flex; gap: var(--space-2); margin-top: var(--space-1); }

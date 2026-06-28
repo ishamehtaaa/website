@@ -2,7 +2,11 @@ const Database = require("better-sqlite3");
 const fs = require("fs");
 const path = require("path");
 
-const db = new Database(process.env.DB_PATH || "/data/site.db");
+// production sets DB_PATH (e.g. a mounted /data volume); locally fall back to a
+// project-relative file so `npm start` works without any env setup.
+const dbPath = process.env.DB_PATH || path.join(__dirname, "data", "site.db");
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 
 const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
