@@ -22,6 +22,16 @@
       Tailwind is a near-mechanical translation (--space-4 → p-4, --text-sm →
       text-sm, the colour vars drop straight into @theme).
 
+   4. MOBILE PLATFORM RULES (each exists for a hard device reason):
+      - Form controls (input/select/textarea) never render below
+        --control-font (16px) on mobile: iOS zooms the page on focus below it.
+      - Every :hover rule lives behind @media (hover: hover) — on touch, hover
+        styles stick after a tap. Pressed feedback comes from :active instead.
+      - Viewport units: svh/dvh only, never vh (the mobile URL bar makes 100vh
+        taller than the visible screen).
+      - Fixed chrome (corner nav, toolbar, bottom bar, sheet) pads with the
+        --safe-* tokens so it clears notches and the home indicator.
+
    Section order: Tokens → Base → Home → Scrapbook → Bookshelf
    ============================================================ */
 
@@ -82,10 +92,21 @@
      the in-between size used by those mobile base rules */
   --text-touch: 15px;
 
+  /* form controls never render below this on mobile — iOS Safari zooms the
+     whole page on focus below 16px. Desktop deltas may shrink control text;
+     mobile base rules must not. */
+  --control-font: 16px;
+
   /* ---- radius ---- */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
+
+  /* ---- safe areas (0 on rectangular screens; real on notched phones) ---- */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
 }
 
 @media (prefers-color-scheme: light) {
@@ -133,20 +154,33 @@ body {
   margin: 0;
 }
 
+/* no double-tap-zoom hesitation on anything interactive (.item manages its own
+   touch-action for drag/scroll arbitration and is deliberately not here) */
+a, button, select, .row { touch-action: manipulation; }
+
+/* pressed feedback: touch has no hover, so :active is the only cue a finger
+   gets that a tap landed */
+button:active { transform: scale(0.97); }
+#nav a:active, #bar a:active, #boards a:active { color: var(--fg); }
+.row:active { background: var(--hover); }
+
 /* ============================================================
    home page (body.home)
    ============================================================ */
-body.home { min-height: 100vh; }
+body.home { min-height: 100svh; }
 
 main {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  /* mobile: < 100svh on purpose — the guestbook notepad flows below and its
+     yellow header peeking above the fold is what tells visitors it exists */
+  min-height: 78svh;
   gap: 18px;
   padding: var(--space-5);
   @media (min-width: 641px) {
+    min-height: 100svh;
     gap: var(--space-6);
     padding: var(--space-6);
   }
@@ -172,13 +206,15 @@ main a {
   font-size: var(--text-lg);
   @media (min-width: 641px) { font-size: var(--text-md); }
 }
-main a:hover { border-bottom-color: var(--fg); }
+@media (hover: hover) {
+  main a:hover { border-bottom-color: var(--fg); }
+}
 
 /* ---- corner nav (fixed in both layouts, just repositioned) ---- */
 #nav {
   position: fixed;
-  top: 14px;
-  left: 14px;
+  top: max(14px, var(--safe-top));
+  left: max(14px, var(--safe-left));
   font-size: var(--text-lg);
   @media (min-width: 641px) {
     top: var(--space-6);
@@ -188,12 +224,19 @@ main a:hover { border-bottom-color: var(--fg); }
 }
 #nav a {
   display: block;
-  margin-bottom: var(--space-1);
+  /* invisible padding fattens the tap target toward the 44px guideline */
+  padding: var(--space-2) var(--space-1);
   color: var(--muted);
   text-decoration: none;
   border-bottom: 1px dashed transparent;
+  @media (min-width: 641px) {
+    padding: 0;
+    margin-bottom: var(--space-1);
+  }
 }
-#nav a:hover { color: var(--fg); border-bottom-color: var(--muted); }
+@media (hover: hover) {
+  #nav a:hover { color: var(--fg); border-bottom-color: var(--muted); }
+}
 
 /* ---- guestbook notepad (material colours stay literal) ----
    mobile: flows inline under the page. desktop: pinned to the corner, rotated. */
@@ -247,13 +290,17 @@ main a:hover { border-bottom-color: var(--fg); }
 .gb-form input,
 .gb-form textarea {
   font: inherit;
+  font-size: var(--control-font);
   border: none;
   border-bottom: 1px solid #d8cfa6;
   background: transparent;
   color: #2b2b2b;
   padding: var(--space-2) var(--space-1);
   resize: none;
-  @media (min-width: 641px) { padding: var(--space-1) 2px; }
+  @media (min-width: 641px) {
+    font-size: inherit;
+    padding: var(--space-1) 2px;
+  }
 }
 .gb-form input:focus,
 .gb-form textarea:focus { outline: none; border-bottom-color: #f4c95d; }
@@ -286,11 +333,12 @@ main a:hover { border-bottom-color: var(--fg); }
   list-style: none;
   margin: 0;
   padding: 6px 14px 14px;
-  max-height: 35vh;
-  overflow-y: auto;
+  /* mobile: natural height — a nested scroll region inside the page scroll is
+     fiddly under a thumb. desktop pins the notepad, so it scrolls internally. */
   @media (min-width: 641px) {
     padding: var(--space-1) var(--space-3) var(--space-3);
     max-height: 40vh;
+    overflow-y: auto;
   }
 }
 
@@ -328,8 +376,8 @@ body.scrapbook { overscroll-behavior: none; }
 /* ---- toolbar ---- */
 #bar {
   position: fixed;
-  top: var(--space-4);
-  left: var(--space-4);
+  top: max(var(--space-4), var(--safe-top));
+  left: max(var(--space-4), var(--safe-left));
   z-index: 10000;
   display: flex;
   align-items: center;
@@ -349,10 +397,16 @@ body.scrapbook { overscroll-behavior: none; }
   color: var(--muted);
   text-decoration: none;
   margin-right: 6px;
+  padding: var(--space-2) var(--space-1);  /* tap target */
   font-size: var(--text-lg);
-  @media (min-width: 641px) { font-size: var(--text-base); }
+  @media (min-width: 641px) {
+    padding: 0;
+    font-size: var(--text-base);
+  }
 }
-#bar a:hover { color: var(--fg); }
+@media (hover: hover) {
+  #bar a:hover { color: var(--fg); }
+}
 
 #bar button {
   font: inherit;
@@ -368,7 +422,9 @@ body.scrapbook { overscroll-behavior: none; }
     padding: var(--space-1) 10px;
   }
 }
-#bar button:hover { border-color: var(--accent); color: var(--accent); }
+@media (hover: hover) {
+  #bar button:hover { border-color: var(--accent); color: var(--accent); }
+}
 
 /* hint copy is desktop-only (no room on a phone toolbar) */
 #hint {
@@ -384,16 +440,54 @@ body.scrapbook { overscroll-behavior: none; }
 #boards a {
   color: var(--muted);
   text-decoration: none;
-  padding: 3px var(--space-2);
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   margin: 0;
+  @media (min-width: 641px) { padding: 3px var(--space-2); }
 }
-#boards a:hover { color: var(--fg); }
+@media (hover: hover) {
+  #boards a:hover { color: var(--fg); }
+}
 #boards a.active { color: var(--accent); border-color: var(--edge); background: var(--active); }
 
-#owner-controls, #add-controls, #auth-control { display: inline-flex; align-items: center; gap: var(--space-2); }
+#owner-controls, #auth-control { display: inline-flex; align-items: center; gap: var(--space-2); }
 #owner-controls[hidden], #add-controls[hidden] { display: none; }
+
+/* mobile: the add actions live in a fixed bottom bar — the thumb zone is the
+   native home for primary actions, and it stops the top toolbar wrapping into
+   a tall stack that eats board space. desktop: back inline in the corner bar. */
+#add-controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3)
+           max(var(--space-4), var(--safe-right))
+           calc(var(--space-3) + var(--safe-bottom))
+           max(var(--space-4), var(--safe-left));
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  @media (min-width: 641px) {
+    position: static;
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    background: transparent;
+    border-top: none;
+  }
+}
+#add-controls button {
+  flex: 1;
+  padding: 10px 14px;
+  @media (min-width: 641px) {
+    flex: none;
+    padding: var(--space-1) 10px;
+  }
+}
 
 /* ---- dead end (no access / no such board) — looks like a plain 404 ---- */
 #deadend {
@@ -412,18 +506,21 @@ body.scrapbook { overscroll-behavior: none; }
   border-bottom: 1px dashed var(--muted);
   font-size: var(--text-base);
 }
-.deadend-card a:hover { color: var(--fg); border-bottom-color: var(--fg); }
+@media (hover: hover) {
+  .deadend-card a:hover { color: var(--fg); border-bottom-color: var(--fg); }
+}
 
 /* select in the modal, matching the inputs */
 .modal select {
   width: 100%;
   font: inherit;
-  font-size: var(--text-base);
+  font-size: var(--control-font);
   color: var(--fg);
   background: var(--field);
   border: 1px solid var(--edge);
   border-radius: var(--radius-md);
   padding: 9px 10px;
+  @media (min-width: 641px) { font-size: var(--text-base); }
 }
 .modal select:focus { outline: none; border-color: var(--accent); }
 
@@ -441,17 +538,35 @@ body.scrapbook { overscroll-behavior: none; }
   position: absolute;
   cursor: grab;
   user-select: none;
-  touch-action: none;
+  -webkit-user-select: none;
+  /* long-press lifts the item; it must not pop iOS's image/link preview */
+  -webkit-touch-callout: none;
+  /* pans stay native — a swipe over an item scrolls the board; interact.js
+     takes over only after the hold-to-lift delay. No pinch-zoom keyword:
+     pinching an item resizes the item (gesturable), not the page. */
+  touch-action: pan-x pan-y;
   /* scale grows toward bottom-right so items never overflow into negative
      (unreachable) space; keeps top-left as the stable drag anchor */
   transform-origin: top left;
   max-width: 86vw;
+  transition: filter 0.15s ease;
   @media (min-width: 641px) { max-width: 280px; }
 }
-.item.dragging { cursor: grabbing; }
+.item.dragging {
+  cursor: grabbing;
+  /* "picked up": applyTransform appends scale(var(--lift, 1)) after the
+     item's own scale, so this composes with pinch/handle resizing */
+  --lift: 1.04;
+  filter: drop-shadow(0 14px 24px var(--shadow));
+}
+/* selected = edit mode: shows the resize grip and the × badge (below) */
+.item.selected {
+  outline: 1.5px dashed var(--accent);
+  outline-offset: 4px;
+}
 
 /* resize grip — drag away from the item's centre to grow, toward it to shrink.
-   Hidden until hover on pointer devices; always shown on touch. */
+   Revealed by selection (tap) everywhere, and by hover where hover exists. */
 .item .handle {
   position: absolute;
   right: -7px;
@@ -465,13 +580,17 @@ body.scrapbook { overscroll-behavior: none; }
   cursor: nwse-resize;
   touch-action: none;
   opacity: 0;
+  pointer-events: none;  /* hidden must also mean untouchable, or an invisible
+                            grip near the corner would eat scroll swipes */
   transition: opacity 0.12s;
 }
-.item:hover .handle { opacity: 1; }
+.item.selected .handle { opacity: 1; pointer-events: auto; }
+@media (hover: hover) {
+  .item:hover .handle { opacity: 1; pointer-events: auto; }
+}
 @media (hover: none) {
-  /* always visible on touch, with a padded ~44px hit area so it's tappable */
+  /* bigger on touch, with a padded ~44px hit area */
   .item .handle {
-    opacity: 1;
     width: 22px;
     height: 22px;
     right: -11px;
@@ -482,6 +601,32 @@ body.scrapbook { overscroll-behavior: none; }
     position: absolute;
     inset: -11px;
   }
+}
+
+/* × delete badge — the discoverable replacement for the old hidden long-press */
+.item .del {
+  position: absolute;
+  top: -11px;
+  left: -11px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: 1;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--edge);
+  box-shadow: 0 1px 4px var(--shadow);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.item.selected .del { opacity: 1; pointer-events: auto; }
+@media (hover: hover) {
+  .item:hover .del { opacity: 1; pointer-events: auto; }
+  .item .del:hover { color: var(--danger); border-color: var(--danger); }
 }
 
 /* note (material colours stay literal) */
@@ -540,7 +685,9 @@ body.scrapbook { overscroll-behavior: none; }
   }
 }
 .item.link a { color: #8fc7ff; text-decoration: none; word-break: break-all; }
-.item.link a:hover { text-decoration: underline; }
+@media (hover: hover) {
+  .item.link a:hover { text-decoration: underline; }
+}
 .item.link .cap {
   color: #cfe3f5;
   margin-bottom: var(--space-1);
@@ -562,29 +709,47 @@ body.scrapbook { overscroll-behavior: none; }
   @media (min-width: 641px) { font-size: var(--text-base); }
 }
 
-/* ---- modal ---- */
+/* ---- modal ----
+   a native <dialog>: the browser owns top-layer stacking, focus trapping, and
+   Escape — we only style the box. mobile: bottom sheet. desktop: centred card. */
 #overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 20000;
-  display: none;
-  align-items: center;
-  justify-content: center;
+  border: none;
+  padding: 0;               /* zero padding ⇒ a click whose target is the dialog
+                               itself can only be on the ::backdrop */
+  background: transparent;
+  width: 100%;
+  max-width: none;
+  margin: auto auto 0;      /* pinned to the bottom edge = sheet */
+  @media (min-width: 641px) {
+    width: auto;
+    margin: auto;           /* centred card */
+  }
+}
+#overlay::backdrop {
   background: var(--overlay);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
-#overlay.open { display: flex; }
 
 .modal {
-  width: min(380px, calc(100vw - 32px));
+  width: 100%;
   background: var(--surface);
   border: 1px solid var(--edge);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px var(--shadow);
-  padding: 22px;
-  animation: pop 0.12s ease-out;
-  @media (min-width: 641px) { padding: 18px; }
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -10px 40px var(--shadow);
+  padding: 22px 22px calc(22px + var(--safe-bottom));
+  animation: sheet-up 0.18s ease-out;
+  @media (min-width: 641px) {
+    width: min(380px, calc(100vw - 32px));
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px var(--shadow);
+    padding: 18px;
+    animation: pop 0.12s ease-out;
+  }
+}
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: none; }
 }
 @keyframes pop {
   from { opacity: 0; transform: translateY(6px) scale(0.98); }
@@ -618,7 +783,7 @@ body.scrapbook { overscroll-behavior: none; }
   border: 1px solid var(--edge);
   border-radius: var(--radius-md);
   resize: none;
-  font-size: var(--text-lg);
+  font-size: var(--control-font);
   padding: 11px var(--space-3);
   @media (min-width: 641px) {
     font-size: var(--text-base);
@@ -648,14 +813,16 @@ body.scrapbook { overscroll-behavior: none; }
   }
 }
 .modal .btn-cancel { background: transparent; color: var(--muted); }
-.modal .btn-cancel:hover { color: var(--fg); border-color: var(--muted); }
 .modal .btn-ok {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
   font-weight: 600;
 }
-.modal .btn-ok:hover { background: var(--accent-hover); }
+@media (hover: hover) {
+  .modal .btn-cancel:hover { color: var(--fg); border-color: var(--muted); }
+  .modal .btn-ok:hover { background: var(--accent-hover); }
+}
 
 /* ============================================================
    bookshelf (body.bookshelf)
@@ -665,7 +832,7 @@ body.scrapbook { overscroll-behavior: none; }
    ============================================================ */
 body.bookshelf {
   --bs-w: 880px;   /* content column width (layout only, not a colour) */
-  min-height: 100vh;
+  min-height: 100svh;
 }
 
 /* override the scrapbook's fixed corner #bar: a quiet top strip aligned with the
@@ -687,15 +854,19 @@ body.bookshelf #bar {
   }
 }
 body.bookshelf #bar a { color: var(--muted); }
-body.bookshelf #bar a:hover { color: var(--fg); }
 body.bookshelf #bar .spacer { flex: 1; }
 body.bookshelf #bar button {
   font: inherit; font-size: var(--text-sm); cursor: pointer;
   background: transparent; color: var(--muted);
-  border: 1px solid var(--edge); border-radius: 5px; padding: 5px var(--space-3);
+  border: 1px solid var(--edge); border-radius: 5px;
+  padding: 9px var(--space-3);
   transition: color 0.14s ease, border-color 0.14s ease;
+  @media (min-width: 641px) { padding: 5px var(--space-3); }
 }
-body.bookshelf #bar button:hover { color: var(--fg); border-color: var(--muted); }
+@media (hover: hover) {
+  body.bookshelf #bar a:hover { color: var(--fg); }
+  body.bookshelf #bar button:hover { color: var(--fg); border-color: var(--muted); }
+}
 
 /* masthead — a big, tight headline with a superscript count, à la Stripe */
 #masthead {
@@ -718,35 +889,43 @@ body.bookshelf #bar button:hover { color: var(--fg); border-color: var(--muted);
 }
 #masthead .sub { color: var(--muted); font-size: var(--text-base); margin: var(--space-4) 0 0; }
 
-/* controls: filter tabs on the left, a quiet inline sort on the right */
+/* controls: a single stripe-style filter row. no "all" tab — unfiltered is the
+   default state; a `clear` affordance appears while a filter is active. */
 #controls {
   max-width: var(--bs-w);
   margin: 30px auto 0;
   padding: 0 var(--space-4);
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: baseline;
   flex-wrap: wrap; gap: var(--space-3);
   @media (min-width: 641px) { padding: 0 var(--space-6); }
 }
-#tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-#tabs .tab {
+.filter-label { color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em; }
+#filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+#filters .tab {
   font: inherit; font-size: var(--text-sm); cursor: pointer;
   color: var(--muted); background: transparent;
   border: 1px solid transparent; border-radius: var(--radius-md);
-  padding: 5px 10px;
+  padding: 9px 12px;
   transition: color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+  @media (min-width: 641px) { padding: 5px 10px; }
 }
-#tabs .tab:hover { color: var(--fg); background: var(--hover); }
-#tabs .tab.active { color: var(--fg); background: var(--active); }
-#tabs .tab .cnt { color: var(--faint); font-size: var(--text-xs); }
-#tabs .tab.active .cnt { color: var(--accent); }
-
-.sort-wrap { display: inline-flex; align-items: center; gap: 7px; }
-.sort-label { color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em; }
-body.bookshelf #sort {
-  font: inherit; font-size: var(--text-sm); cursor: pointer;
-  color: var(--fg); background: transparent; border: none; padding: 2px 0;
+@media (hover: hover) {
+  #filters .tab:hover { color: var(--fg); background: var(--hover); }
 }
-body.bookshelf #sort:hover { color: var(--accent); }
+#filters .tab:active { background: var(--hover); }
+#filters .tab.active { color: var(--fg); background: var(--active); }
+#filters .tab .cnt { color: var(--faint); font-size: var(--text-xs); }
+#filters .tab.active .cnt { color: var(--accent); }
+#filters .clear {
+  font: inherit; font-size: var(--text-2xs); cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--accent); background: transparent; border: none;
+  padding: 9px 12px;
+  @media (min-width: 641px) { padding: 5px 10px; }
+}
+@media (hover: hover) {
+  #filters .clear:hover { text-decoration: underline; }
+}
 
 /* the index — display:block resets the global `main` flex-centering rule */
 #shelf {
@@ -759,15 +938,15 @@ body.bookshelf #sort:hover { color: var(--accent); }
 .bare { color: var(--muted); font-size: var(--text-md); padding: 40px var(--space-1); border-top: 1px solid var(--line); }
 .showing { color: var(--faint); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em; margin: var(--space-4) 0 0; padding: 0 var(--space-1); }
 
-/* column header + each entry share one grid.
-   mobile: just title / category-or-time / toggle. desktop: full 5 columns. */
+/* column header + each entry share one grid — three facts per row: when, what,
+   what kind. mobile drops the date column; everything else lives in the panel. */
 .listhead, .row {
   display: grid;
   grid-template-columns: 1fr auto 22px;
   align-items: center;
   gap: var(--space-3);
   @media (min-width: 641px) {
-    grid-template-columns: 1fr 124px 56px 56px 22px;
+    grid-template-columns: 112px 1fr auto 22px;
     gap: 18px;
   }
 }
@@ -775,12 +954,16 @@ body.bookshelf #sort:hover { color: var(--accent); }
   padding: 0 var(--space-1) 10px; border-bottom: 1px solid var(--edge);
   color: var(--muted); font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em;
 }
+.lh-type { justify-self: end; }
 
-/* category + time columns are hidden on mobile (they still show in the open
-   panel); revealed on desktop where the grid has room for them. */
-.lh-cat, .lh-time, .r-cat, .r-time {
+/* the date column is desktop-only (the added date still shows in the open panel) */
+.lh-date, .r-date {
   display: none;
   @media (min-width: 641px) { display: revert; }
+}
+.r-date {
+  color: var(--muted); font-size: var(--text-sm); white-space: nowrap;
+  @media (min-width: 641px) { display: inline-flex; align-items: center; gap: 10px; }
 }
 
 /* an entry: a quiet table row that expands in place when clicked */
@@ -789,43 +972,50 @@ body.bookshelf #sort:hover { color: var(--accent); }
   padding: 13px var(--space-1); cursor: pointer;
   transition: background 0.14s ease;
 }
-.row:hover { background: var(--hover); }
+@media (hover: hover) {
+  .row:hover { background: var(--hover); }
+}
 .entry.open > .row { background: var(--active); }
 
-.r-name { display: inline-flex; align-items: baseline; gap: 11px; min-width: 0; }
+.r-name { display: inline-flex; align-items: baseline; gap: 9px; min-width: 0; }
+/* one uniform marker, à la stripe's ■ — status/favorite read from the badge and ★ */
 .marker {
-  width: var(--space-2); height: var(--space-2); border-radius: 2px; flex: none;
-  background: var(--muted); align-self: center;
+  width: var(--space-2); height: var(--space-2); border-radius: 1px; flex: none;
+  background: var(--fg);
 }
-.entry.queue .marker { background: transparent; border: 1.5px solid var(--muted); }
-.entry.fav .marker { background: var(--accent); border-color: var(--accent); }
 
 .r-title {
   font-size: var(--text-md); color: var(--fg); letter-spacing: -0.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.row:hover .r-title, .entry.open .r-title { color: var(--strong); }
+@media (hover: hover) {
+  .row:hover .r-title { color: var(--strong); }
+}
+.entry.open .r-title { color: var(--strong); }
 .r-by {
   color: var(--muted); font-size: var(--text-sm); flex-shrink: 2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .r-by::before { content: "· "; }
+.r-fav { color: var(--accent); font-size: var(--text-sm); flex: none; }
 
-/* a plain, uniform category box — no per-category colour */
-.r-cat {
-  justify-self: start;
+/* the type badge: a plain uppercase box, no per-category colour. queued items
+   get a dashed accent "to read" badge — visible in the default view, not
+   hidden behind a tab. */
+.r-type {
+  justify-self: end;
   font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--muted); border: 1px solid var(--edge);
   border-radius: var(--radius-sm); padding: 3px var(--space-2); white-space: nowrap;
 }
-.r-love { font-size: var(--text-sm); color: var(--love); white-space: nowrap; }
-.r-time { font-size: var(--text-sm); white-space: nowrap; }
-.muted { color: var(--muted); }
+.r-type.todo { color: var(--accent); border: 1px dashed currentColor; }
 .r-x {
   text-align: center; color: var(--muted); font-size: var(--text-touch); line-height: 1;
   transition: transform 0.18s ease, color 0.18s ease;
 }
-.row:hover .r-x { color: var(--fg); }
+@media (hover: hover) {
+  .row:hover .r-x { color: var(--fg); }
+}
 .entry.open .r-x { transform: rotate(45deg); color: var(--accent); }  /* + becomes × */
 
 /* the opened entry: notes + metadata, revealed in place */
@@ -849,13 +1039,17 @@ body.bookshelf #sort:hover { color: var(--accent); }
 .panel-actions { margin-top: var(--space-4); display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .panel-actions button, .form-actions button {
   font: inherit; font-size: var(--text-sm); cursor: pointer;
-  background: var(--hover); color: var(--fg); border: 1px solid var(--edge); border-radius: 5px; padding: 5px var(--space-3);
+  background: var(--hover); color: var(--fg); border: 1px solid var(--edge); border-radius: 5px;
+  padding: 9px var(--space-4);
   transition: color 0.14s ease, border-color 0.14s ease;
+  @media (min-width: 641px) { padding: 5px var(--space-3); }
 }
-.panel-actions button:hover, .form-actions button:hover { border-color: var(--accent); color: var(--accent); }
+@media (hover: hover) {
+  .panel-actions button:hover, .form-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .panel-actions button.mark:hover { border-color: var(--positive); color: var(--positive); background: var(--hover); }
+}
 .panel-actions button.armed { border-color: var(--danger); color: var(--danger); }
 .panel-actions button.mark { border-color: var(--positive); color: var(--positive); }
-.panel-actions button.mark:hover { border-color: var(--positive); color: var(--positive); background: var(--hover); }
 .form-actions button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 
 /* inline add/edit form (also used in the .addslot at the top of the index).
@@ -876,8 +1070,9 @@ body.bookshelf #sort:hover { color: var(--accent); }
 .bookform label { color: var(--muted); font-size: var(--text-sm); }
 .bookform label .hint { color: var(--faint); font-size: var(--text-xs); }
 .bookform input, .bookform select, .bookform textarea {
-  font: inherit; font-size: var(--text-base); background: var(--field); color: var(--fg);
+  font: inherit; font-size: var(--control-font); background: var(--field); color: var(--fg);
   border: 1px solid var(--edge); border-radius: var(--radius-sm); padding: 7px 9px; width: 100%;
+  @media (min-width: 641px) { font-size: var(--text-base); }
 }
 .bookform .frow.check label { display: flex; align-items: center; gap: var(--space-2); color: var(--fg); }
 .bookform .frow.check input { width: auto; }

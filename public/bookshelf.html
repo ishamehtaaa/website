@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#fbfbf9" media="(prefers-color-scheme: light)" />
   <title>isha's notes</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -21,17 +23,8 @@
   </header>
 
   <div id="controls">
-    <nav id="tabs"></nav>
-    <div class="sort-wrap">
-      <span class="sort-label">/ sort</span>
-      <select id="sort" aria-label="sort">
-        <option value="default">favorites first</option>
-        <option value="love">♥ score</option>
-        <option value="recent">recently added</option>
-        <option value="title">title a–z</option>
-        <option value="time">reading time</option>
-      </select>
-    </div>
+    <span class="filter-label">/ filter</span>
+    <nav id="filters"></nav>
   </div>
 
   <main id="shelf"></main>

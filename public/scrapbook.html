@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#fbfbf9" media="(prefers-color-scheme: light)" />
   <title>isha's scrapbook</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -18,7 +20,7 @@
     </span>
     <span id="owner-controls"></span>
     <span id="auth-control"></span>
-    <span id="hint">drag to move · double-click to remove</span>
+    <span id="hint">drag to move · click to select · double-click to remove</span>
   </div>
 
   <div id="board">
@@ -34,11 +36,11 @@
 
   <input type="file" id="file-input" accept="image/*" hidden />
 
-  <div id="overlay">
+  <dialog id="overlay">
     <form class="modal" id="modal" autocomplete="off"></form>
-  </div>
+  </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.27/dist/interact.min.js"></script>
+  <script src="/vendor/interact.min.js"></script>
   <script src="/scrapbook.js"></script>
 </body>
 </html>

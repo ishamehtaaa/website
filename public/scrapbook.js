@@ -34,11 +34,23 @@ let topZ = 0;
 
 // mobile gets its own layout: items carry a separate mx/my/mscale so a phone and
 // a desktop can arrange the same board without overwriting each other. The
-// breakpoint matches the CSS one; crossing it (resize/rotate) re-renders so the
-// right coordinate set is used.
+// breakpoint matches the CSS one; crossing it (rotation, split-screen resize)
+// re-renders in place so the right coordinate set applies — a reload here would
+// dump scroll position and any open dialog.
 const mq = window.matchMedia("(max-width: 640px)");
 const mobileMode = () => mq.matches;
-mq.addEventListener("change", () => location.reload());
+mq.addEventListener("change", () => {
+  board.querySelectorAll(".item").forEach(el => {
+    if (typeof interact !== "undefined") interact(el).unset();
+    el.remove();
+  });
+  if (emptyMsg) emptyMsg.style.display = "";
+  loadBoard();
+});
+
+// hold-to-lift applies wherever the pointer is a finger — input capability, not
+// viewport width (a phone in landscape is still a phone).
+const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
 
 // which board this page is showing (?board=slug, default "main"). GET/POST are
 // scoped to it; PATCH/DELETE go by item id (the server gates on the item's board).
@@ -68,14 +80,18 @@ function openModal({ title, fields = [], okLabel = "add" }) {
          <button type="submit" class="btn-ok">${esc(okLabel)}</button>
        </div>`;
 
-    overlay.classList.add("open");
+    overlay.showModal();
     const first = modal.querySelector("input, textarea");
     if (first) first.focus();
 
+    let done = false; // Escape fires both oncancel and (via close()) nothing else; guard double-resolution
     function close(result) {
-      overlay.classList.remove("open");
+      if (done) return;
+      done = true;
+      overlay.close();
       modal.onsubmit = null;
       overlay.onmousedown = null;
+      overlay.oncancel = null;
       document.removeEventListener("keydown", onKey);
       modal.innerHTML = "";
       resolve(result);
@@ -87,10 +103,10 @@ function openModal({ title, fields = [], okLabel = "add" }) {
       close(out);
     }
 
+    // Escape is the dialog's own job (oncancel below); Cmd/Ctrl+Enter submits
+    // from a textarea, plain Enter submits otherwise
     function onKey(e) {
-      if (e.key === "Escape") close(null);
-      // Cmd/Ctrl+Enter submits from a textarea; plain Enter submits otherwise
-      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey || e.target.tagName !== "TEXTAREA")) {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey || e.target.tagName !== "TEXTAREA")) {
         e.preventDefault();
         submit();
       }
@@ -98,9 +114,26 @@ function openModal({ title, fields = [], okLabel = "add" }) {
 
     modal.onsubmit = e => { e.preventDefault(); submit(); };
     modal.querySelector(".btn-cancel").onclick = () => close(null);
+    overlay.oncancel = () => close(null);
+    // the dialog box has zero padding, so a click targeting the dialog itself
+    // can only have landed on the ::backdrop
     overlay.onmousedown = e => { if (e.target === overlay) close(null); };
     document.addEventListener("keydown", onKey);
   });
+}
+
+// the on-screen keyboard shrinks only the *visual* viewport; the dialog is laid
+// out in the layout viewport and a bottom sheet would sit under the keys. Lift
+// it by the overlap while it's open. (No-op on desktop: the gap is 0.)
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const liftSheet = () => {
+    if (!overlay.open) { overlay.style.transform = ""; return; }
+    const gap = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    overlay.style.transform = gap ? `translateY(${-gap}px)` : "";
+  };
+  vv.addEventListener("resize", liftSheet);
+  vv.addEventListener("scroll", liftSheet);
 }
 
 // styled yes/no, replaces window.confirm
@@ -136,7 +169,9 @@ function renderItem(it) {
     ? (useMobile ? it.mscale : it.scale) : 1;
   applyTransform(el);
   el.innerHTML = itemInner(it);
-  el.insertAdjacentHTML("beforeend", '<div class="handle" aria-hidden="true"></div>');
+  el.insertAdjacentHTML("beforeend",
+    '<div class="handle" aria-hidden="true"></div>' +
+    '<button type="button" class="del" aria-label="remove from board">×</button>');
   topZ = Math.max(topZ, it.z);
   makeDraggable(el);
   board.appendChild(el);
@@ -368,13 +403,27 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 function currentScale(el) { return parseFloat(el.dataset.scale) || 1; }
 
 function applyTransform(el) {
-  el.style.transform = `rotate(${parseFloat(el.dataset.rot) || 0}deg) scale(${currentScale(el)})`;
+  // the trailing scale(var(--lift, 1)) lets CSS "pick up" a dragging item
+  // (.item.dragging sets --lift) without fighting this inline transform
+  el.style.transform =
+    `rotate(${parseFloat(el.dataset.rot) || 0}deg) scale(${currentScale(el)}) scale(var(--lift, 1))`;
 }
 
 function bringToFront(el) {
   topZ += 1;
   el.style.zIndex = topZ;
 }
+
+// selection = edit mode for one item: reveals its × badge and resize grip.
+// tap/click an item to select, tap elsewhere (or Escape) to clear.
+function select(el) {
+  board.querySelectorAll(".item.selected").forEach(i => {
+    if (i !== el) i.classList.remove("selected");
+  });
+  if (el) el.classList.add("selected");
+}
+board.addEventListener("pointerdown", e => { if (e.target === board) select(null); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") select(null); });
 
 function persist(el) {
   const left = parseFloat(el.style.left);
@@ -397,7 +446,7 @@ function persist(el) {
 }
 
 function makeDraggable(el) {
-  // remove from the board (shared by double-click and touch long-press)
+  // remove from the board (shared by the × badge and desktop double-click)
   const del = async () => {
     if (!(await confirmModal("remove this from the board?"))) return;
     api(`/api/scrapbook/${el.dataset.id}`, { method: "DELETE" })
@@ -405,55 +454,66 @@ function makeDraggable(el) {
       .catch(() => {});
   };
 
-  // double-click to remove on desktop (works even if the interact CDN fails)
+  el.querySelector(".del").addEventListener("click", del);
+  // double-click still works on desktop (and if interact.js somehow fails)
   el.addEventListener("dblclick", del);
 
-  // touch: long-press to remove. Double-tap collides with the browser's
-  // tap-to-zoom and fires unreliably, so hold-still for 600ms instead. Any drag
-  // (pointer moves past a small threshold) or lift cancels it.
-  let lpTimer = null, lpX = 0, lpY = 0;
-  const cancelLP = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
-  el.addEventListener("pointerdown", e => {
-    if (e.pointerType === "mouse") return;
-    lpX = e.clientX; lpY = e.clientY;
-    cancelLP();
-    lpTimer = setTimeout(() => { lpTimer = null; del(); }, 600);
-  });
-  el.addEventListener("pointermove", e => {
-    if (lpTimer && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 10) cancelLP();
-  });
-  el.addEventListener("pointerup", cancelLP);
-  el.addEventListener("pointercancel", cancelLP);
+  // .item's touch-action allows native panning so plain swipes scroll the
+  // board — but once interact owns the touches (post-hold drag, or a pinch),
+  // the same moves must NOT also pan the page underneath.
+  let interacting = false;
+  el.addEventListener("touchmove", e => { if (interacting) e.preventDefault(); },
+    { passive: false });
 
   if (typeof interact === "undefined") return; // library unavailable; static board
 
   interact(el)
+    // tap = select (shows × and the resize grip); tap again or elsewhere clears
+    .on("tap", e => {
+      if (e.target.closest("a, .handle, .del")) return; // controls own their taps
+      select(el.classList.contains("selected") ? null : el);
+    })
     .draggable({
-      ignoreFrom: "a, .handle", // links stay clickable; the grip resizes, not moves
+      ignoreFrom: "a, .handle, .del", // links stay clickable; grip resizes, × deletes
+      // fingers must hold to lift — an immediate drag would make browsing the
+      // board impossible (every scroll swipe would move an item). Mice grab
+      // instantly: they have no scroll gesture to protect.
+      hold: coarsePointer ? 250 : 0,
       // pan the page when the drag nears an edge so an item can be moved across a
       // board larger than the viewport — essential on phones, where the board is
       // almost always bigger than the screen.
       autoScroll: true,
       listeners: {
-        start() { bringToFront(el); el.classList.add("dragging"); },
+        start() {
+          interacting = true;
+          bringToFront(el);
+          select(el);
+          el.classList.add("dragging");
+          if (navigator.vibrate) navigator.vibrate(10); // pickup tick (Android)
+        },
         move(e) {
           el.style.left = (parseFloat(el.style.left) + e.dx) + "px";
           el.style.top = (parseFloat(el.style.top) + e.dy) + "px";
         },
         // grow the board to fit only on release: doing it every move shifted the
         // scroll area under the finger and made the drag jitter on touch.
-        end() { el.classList.remove("dragging"); sizeBoard(); persist(el); },
+        end() {
+          interacting = false;
+          el.classList.remove("dragging");
+          sizeBoard();
+          persist(el);
+        },
       },
     })
     .gesturable({
       // two-finger pinch to resize on touch
       listeners: {
-        start() { bringToFront(el); el._s0 = currentScale(el); },
+        start() { interacting = true; bringToFront(el); el._s0 = currentScale(el); },
         move(e) {
           el.dataset.scale = clamp(el._s0 * e.scale, MIN_SCALE, MAX_SCALE);
           applyTransform(el);
         },
-        end() { sizeBoard(); persist(el); },
+        end() { interacting = false; sizeBoard(); persist(el); },
       },
     });
 
